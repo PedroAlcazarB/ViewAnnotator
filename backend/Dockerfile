@@ -9,8 +9,5 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
-# Expone el puerto 5000
-EXPOSE 5000
-
-# Ejecuta la aplicación Flask
-CMD ["python", "app.py"]
+ENV FLASK_APP=app.py
+ENV FLASK_ENV=development
