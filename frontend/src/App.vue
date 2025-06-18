@@ -1,31 +1,49 @@
 <template>
-  <div>
-    <input type="file" @change="handleFileUpload" accept="image/*" />
-
-    <div v-if="previewUrl" style="margin-top: 20px;">
-      <h4>Imagen:</h4>
-      <vue-panzoom style="display: inline-block; border: 1px solid #ccc; max-width: 400px;">
-        <img :src="previewUrl" alt="Imagen cargada" style="max-width: 100%; display: block;" />
-      </vue-panzoom>
-      <p style="margin-top: 10px;">Usa la rueda del ratón para hacer zoom y arrastra para desplazarte.</p>
-    </div>
+  <div id="app">
+    <header class="app-header">
+      <h1>VISILAB Annotator</h1>
+      <nav>
+        <router-link to="/">Inicio</router-link>
+        <router-link to="/projects">Anotador</router-link>
+      </nav>
+    </header>
+    <main>
+      <router-view />
+    </main>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import VuePanZoom from 'vue-panzoom'
-
-const previewUrl = ref(null)
-
-const handleFileUpload = (event) => {
-  const file = event.target.files[0]
-
-  if (file) {
-    previewUrl.value = URL.createObjectURL(file)
-  } else {
-    previewUrl.value = null
-  }
-}
-
+import { RouterView } from 'vue-router'
 </script>
+
+<style>
+#app {
+  font-family: 'Segoe UI', 'Roboto', sans-serif;
+  min-height: 100vh;
+  background: #f4f6f8;
+  display: flex;
+  flex-direction: column;
+}
+.app-header {
+  background: #2c3e50;
+  color: #fff;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+nav a {
+  color: #fff;
+  margin-left: 1rem;
+  text-decoration: none;
+  font-weight: 500;
+}
+nav a.router-link-active {
+  text-decoration: underline;
+}
+main {
+  flex: 1;
+  padding: 1rem 0;
+}
+</style>
