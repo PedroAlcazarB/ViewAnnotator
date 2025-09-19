@@ -2,3 +2,5 @@ flask
 flask-cors
 watchdog
 flask-socketio
+Pillow
+pymongo
