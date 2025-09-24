@@ -1,18 +1,43 @@
-version: '3'
+version: '3.8'
 services:
+  # Servicio MongoDB
+  mongo:
+    image: mongo:6.0
+    container_name: visilab_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: visilab_annotator
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - visilab_network
+
+  # Servicio Backend
   backend:
     build: ./backend
+    container_name: visilab_backend
     ports:
       - "5000:5000"
     environment:
       - FLASK_ENV=development
       - FLASK_APP=app.py
+      - MONGO_URI=mongodb://mongo:27017/
     volumes:
       - ./backend:/app
+      - ./backend/images:/app/images
     command: flask run --host=0.0.0.0 --port=5000 --reload 
+    depends_on:
+      - mongo
+    networks:
+      - visilab_network
 
+  # Servicio Frontend
   frontend:
     build: ./frontend
+    container_name: visilab_frontend
     ports:
       - "8080:8080"
     volumes:
@@ -22,3 +47,15 @@ services:
     command: npm run dev
     depends_on:
       - backend
+    networks:
+      - visilab_network
+
+# Volúmenes persistentes
+volumes:
+  mongodb_data:
+    driver: local
+
+# Red para comunicación entre servicios
+networks:
+  visilab_network:
+    driver: bridge

@@ -30,7 +30,7 @@
               y: ann.bbox[1],
               width: ann.bbox[2],
               height: ann.bbox[3],
-              stroke: getCategoryColor(ann.category_id),
+              stroke: getCategoryColor(ann.category || ann.category_id),
               strokeWidth: 2,
               listening: true
             }"
@@ -42,7 +42,7 @@
             v-if="ann.type === 'polygon' && ann.points"
             :config="{
               points: ann.points.flat(),
-              stroke: getCategoryColor(ann.category_id),
+              stroke: getCategoryColor(ann.category || ann.category_id),
               strokeWidth: 2,
               closed: true,
               listening: true
@@ -55,7 +55,7 @@
             v-if="ann.type === 'brush' && ann.points"
             :config="{
               points: ann.points,
-              stroke: getCategoryColor(ann.category_id),
+              stroke: getCategoryColor(ann.category || ann.category_id),
               strokeWidth: props.toolSettings?.brush?.radius / 2 || 8,
               lineCap: 'round',
               lineJoin: 'round',
@@ -71,8 +71,8 @@
               x: ann.center?.x || (ann.bbox[0] + ann.bbox[2]/2),
               y: ann.center?.y || (ann.bbox[1] + ann.bbox[3]/2),
               radius: ann.bbox[2]/2,
-              stroke: getCategoryColor(ann.category_id),
-              fill: getCategoryColor(ann.category_id),
+              stroke: getCategoryColor(ann.category || ann.category_id),
+              fill: getCategoryColor(ann.category || ann.category_id),
               strokeWidth: 2,
               listening: true,
               opacity: 0.8
@@ -458,24 +458,25 @@ function handlePolygonClick(pos) {
   }
 }
 
-function completeBBox() {
+async function completeBBox() {
   if (Math.abs(drawingRect.width) > 10 && Math.abs(drawingRect.height) > 10) {
-    store.addAnnotation({
-      bbox: [
-        Math.min(drawingRect.x, drawingRect.x + drawingRect.width),
-        Math.min(drawingRect.y, drawingRect.y + drawingRect.height),
-        Math.abs(drawingRect.width),
-        Math.abs(drawingRect.height)
-      ],
-      category_id: store.selectedCategory,
-      image_id: props.imageId,
-      id: Date.now(),
-      type: 'bbox'
-    })
+    try {
+      await store.addAnnotation(props.imageId, {
+        bbox: [
+          Math.min(drawingRect.x, drawingRect.x + drawingRect.width),
+          Math.min(drawingRect.y, drawingRect.y + drawingRect.height),
+          Math.abs(drawingRect.width),
+          Math.abs(drawingRect.height)
+        ],
+        type: 'bbox'
+      })
+    } catch (error) {
+      console.error('Error al crear anotación bbox:', error)
+    }
   }
 }
 
-function completePolygon() {
+async function completePolygon() {
   if (currentPath.value.length >= 3) {
     // Calcular bounding box del polígono
     const xs = currentPath.value.map(p => p[0])
@@ -485,21 +486,22 @@ function completePolygon() {
     const maxX = Math.max(...xs)
     const maxY = Math.max(...ys)
     
-    store.addAnnotation({
-      bbox: [minX, minY, maxX - minX, maxY - minY],
-      category_id: store.selectedCategory,
-      image_id: props.imageId,
-      id: Date.now(),
-      type: 'polygon',
-      points: currentPath.value
-    })
+    try {
+      await store.addAnnotation(props.imageId, {
+        bbox: [minX, minY, maxX - minX, maxY - minY],
+        type: 'polygon',
+        points: currentPath.value
+      })
+    } catch (error) {
+      console.error('Error al crear anotación polígono:', error)
+    }
   }
   
   // Limpiar path
   currentPath.value = []
 }
 
-function completeBrush() {
+async function completeBrush() {
   if (brushPath.value.length >= 4) {
     // Calcular bounding box del trazo
     const xs = brushPath.value.filter((_, i) => i % 2 === 0)
@@ -509,24 +511,25 @@ function completeBrush() {
     const maxX = Math.max(...xs)
     const maxY = Math.max(...ys)
     
-    store.addAnnotation({
-      bbox: [minX, minY, maxX - minX, maxY - minY],
-      category_id: store.selectedCategory,
-      image_id: props.imageId,
-      id: Date.now(),
-      type: 'brush',
-      points: brushPath.value
-    })
+    try {
+      await store.addAnnotation(props.imageId, {
+        bbox: [minX, minY, maxX - minX, maxY - minY],
+        type: 'brush',
+        points: brushPath.value
+      })
+    } catch (error) {
+      console.error('Error al crear anotación brush:', error)
+    }
   }
   
   brushPath.value = []
 }
 
-function eraseAtPosition(pos) {
+async function eraseAtPosition(pos) {
   // Encontrar anotaciones que intersectan con el área del borrador
   const annotations = store.getAnnotationsByImageId(props.imageId)
   
-  annotations.forEach(ann => {
+  for (const ann of annotations) {
     const annCenterX = ann.bbox[0] + ann.bbox[2] / 2
     const annCenterY = ann.bbox[1] + ann.bbox[3] / 2
     
@@ -535,21 +538,26 @@ function eraseAtPosition(pos) {
     )
     
     if (distance < eraserRadius.value) {
-      store.removeAnnotation(ann.id)
+      try {
+        await store.removeAnnotation(ann._id)
+      } catch (error) {
+        console.error('Error al eliminar anotación:', error)
+      }
     }
-  })
+  }
 }
 
-function createKeypoint(pos) {
+async function createKeypoint(pos) {
   const size = props.toolSettings.size || 6
-  store.addAnnotation({
-    bbox: [pos.x - size/2, pos.y - size/2, size, size],
-    category_id: store.selectedCategory,
-    image_id: props.imageId,
-    id: Date.now(),
-    type: 'keypoint',
-    center: { x: pos.x, y: pos.y }
-  })
+  try {
+    await store.addAnnotation(props.imageId, {
+      bbox: [pos.x - size/2, pos.y - size/2, size, size],
+      type: 'keypoint',
+      center: { x: pos.x, y: pos.y }
+    })
+  } catch (error) {
+    console.error('Error al crear anotación keypoint:', error)
+  }
 }
 </script>
 

@@ -19,15 +19,19 @@
     <div v-if="images.length > 0" class="thumbnails-grid">
       <div 
         v-for="(image, index) in images" 
-        :key="image.id"
+        :key="image._id"
         class="thumbnail-item"
         :class="{ 'active': currentImageIndex === index }"
         @click="selectImage(index)"
       >
-        <img :src="image.url" :alt="image.name" class="thumbnail">
+        <img 
+          :src="`http://localhost:5000/api/images/${image._id}/data`" 
+          :alt="image.filename" 
+          class="thumbnail"
+        >
         <div class="thumbnail-info">
-          <span class="thumbnail-name">{{ truncateName(image.name) }}</span>
-          <span class="annotation-count">{{ getImageAnnotationCount(image.id) }} anotaciones</span>
+          <span class="thumbnail-name">{{ truncateName(image.filename) }}</span>
+          <span class="annotation-count">{{ getImageAnnotationCount(image._id) }} anotaciones</span>
         </div>
         <button 
           @click.stop="removeImage(index)" 
@@ -106,7 +110,7 @@
           <div class="mini-category-selector">
             <label>Categoría activa:</label>
             <select v-model="store.selectedCategory" class="category-select">
-              <option v-for="category in store.categories" :key="category.id" :value="category.id">
+              <option v-for="category in store.categories" :key="category._id" :value="category._id">
                 {{ category.name }}
               </option>
             </select>
@@ -130,8 +134,8 @@
         <!-- Canvas principal -->
         <div class="annotation-canvas-container">
           <AnnotationCanvas 
-            :imageUrl="currentImage?.url" 
-            :imageId="currentImage?.id"
+            :imageUrl="currentImage ? `http://localhost:5000/api/images/${currentImage._id}/data` : null" 
+            :imageId="currentImage?._id"
             :activeTool="activeTool"
             :toolSettings="toolSettings"
           />
@@ -142,7 +146,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAnnotationStore } from '../stores/annotationStore'
 import ImageUploader from './ImageUploader.vue'
 import AnnotationCanvas from './AnnotationsCanvas.vue'
@@ -152,7 +156,6 @@ import ExportCOCO from './ExportCOCO.vue'
 const store = useAnnotationStore()
 
 // Estado de la galería
-const images = ref([])
 const currentImageIndex = ref(0)
 const showAnnotationView = ref(false)
 const imagesPerPage = 6
@@ -162,10 +165,11 @@ const currentPage = ref(1)
 const activeTool = ref('select')
 const toolSettings = ref({})
 
-// Computed properties
-const currentImage = computed(() => images.value[currentImageIndex.value] || null)
+// Computed properties usando el store
+const images = computed(() => store.images)
+const currentImage = computed(() => store.images[currentImageIndex.value] || null)
 
-const totalPages = computed(() => Math.ceil(images.value.length / imagesPerPage))
+const totalPages = computed(() => Math.ceil(store.images.length / imagesPerPage))
 
 const startIndex = computed(() => (currentPage.value - 1) * imagesPerPage)
 const endIndex = computed(() => startIndex.value + imagesPerPage)
@@ -181,36 +185,28 @@ const visiblePages = computed(() => {
   return pages
 })
 
-// Funciones de manejo de archivos
-function onFilesUploaded(files) {
-  files.forEach(file => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      addImage(e.target.result, file)
-    }
-    reader.readAsDataURL(file)
-  })
-}
+// Inicializar datos
+onMounted(async () => {
+  await store.initialize()
+})
 
-function addImage(url, file) {
-  const newImage = {
-    id: Date.now() + Math.random(), // ID único
-    url: url,
-    name: file.name,
-    file: file,
-    dateAdded: new Date()
-  }
-  
-  images.value.push(newImage)
-  
-  // Si es la primera imagen, seleccionarla automáticamente
-  if (images.value.length === 1) {
+// Funciones de manejo de archivos
+async function onFilesUploaded(uploadedImages) {
+  // Las imágenes ya están subidas al servidor por el ImageUploader
+  // Solo necesitamos actualizar la selección si es necesario
+  if (uploadedImages.length > 0 && store.images.length === uploadedImages.length) {
+    // Si estas son las primeras imágenes, seleccionar la primera
     currentImageIndex.value = 0
   }
 }
 
 function selectImage(index) {
   currentImageIndex.value = index
+  
+  // Establecer imagen actual en el store
+  if (store.images[index]) {
+    store.setCurrentImage(store.images[index])
+  }
   
   // Ajustar página si es necesario
   const pageForImage = Math.floor(index / imagesPerPage) + 1
@@ -219,26 +215,29 @@ function selectImage(index) {
   }
 }
 
-function removeImage(index) {
+async function removeImage(index) {
   if (confirm('¿Estás seguro de que quieres eliminar esta imagen?')) {
-    const imageId = images.value[index].id
+    const image = store.images[index]
     
-    // Eliminar anotaciones asociadas a esta imagen
-    store.removeAnnotationsByImageId(imageId)
-    
-    // Eliminar imagen
-    images.value.splice(index, 1)
-    
-    // Ajustar índice actual si es necesario
-    if (currentImageIndex.value >= images.value.length) {
-      currentImageIndex.value = Math.max(0, images.value.length - 1)
-    }
-    
-    // Ajustar página si es necesario
-    if (images.value.length === 0) {
-      currentPage.value = 1
-    } else if (currentPage.value > totalPages.value) {
-      currentPage.value = totalPages.value
+    try {
+      // Eliminar imagen del servidor (esto también elimina las anotaciones)
+      await store.deleteImage(image._id)
+      
+      // Ajustar índice actual si es necesario
+      if (currentImageIndex.value >= store.images.length) {
+        currentImageIndex.value = Math.max(0, store.images.length - 1)
+      }
+      
+      // Ajustar página si es necesario
+      if (store.images.length === 0) {
+        currentPage.value = 1
+      } else if (currentPage.value > totalPages.value) {
+        currentPage.value = totalPages.value
+      }
+      
+    } catch (error) {
+      console.error('Error al eliminar imagen:', error)
+      alert('Error al eliminar la imagen. Por favor, inténtalo de nuevo.')
     }
   }
 }
@@ -251,7 +250,7 @@ function previousImage() {
 }
 
 function nextImage() {
-  if (currentImageIndex.value < images.value.length - 1) {
+  if (currentImageIndex.value < store.images.length - 1) {
     selectImage(currentImageIndex.value + 1)
   }
 }
@@ -264,10 +263,17 @@ function goToPage(page) {
 }
 
 // Funciones de vista de anotación
-function openAnnotationView() {
+async function openAnnotationView() {
   if (currentImage.value) {
     store.setCurrentImage(currentImage.value)
     showAnnotationView.value = true
+    
+    // Cargar anotaciones para esta imagen
+    try {
+      await store.loadAnnotations(currentImage.value._id)
+    } catch (error) {
+      console.error('Error al cargar anotaciones:', error)
+    }
   }
 }
 
@@ -279,10 +285,14 @@ function onToolChanged(event) {
   store.updateToolSettings(event.tool, event.settings)
 }
 
-function onAnnotationCleared() {
+async function onAnnotationCleared() {
   // Limpiar anotaciones de la imagen actual
   if (currentImage.value) {
-    store.clearAnnotationsForImage(currentImage.value.id)
+    try {
+      await store.clearAnnotationsForImage(currentImage.value._id)
+    } catch (error) {
+      console.error('Error al limpiar anotaciones:', error)
+    }
   }
 }
 
@@ -309,10 +319,15 @@ function getImageAnnotationCount(imageId) {
   return store.getAnnotationsByImageId(imageId).length
 }
 
-// Watch para limpiar anotaciones cuando cambie la imagen actual
-watch(currentImageIndex, () => {
-  // Opcional: podrías mantener las anotaciones por imagen
-  // store.clearAnnotations()
+// Watch para cargar anotaciones cuando cambie la imagen actual
+watch(currentImageIndex, async (newIndex) => {
+  if (store.images[newIndex] && showAnnotationView.value) {
+    try {
+      await store.loadAnnotations(store.images[newIndex]._id)
+    } catch (error) {
+      console.error('Error al cargar anotaciones:', error)
+    }
+  }
 })
 </script>
 

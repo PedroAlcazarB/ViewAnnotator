@@ -2,13 +2,23 @@
   <div class="uploader">
     <div class="upload-area" @dragover.prevent="dragover = true" 
          @dragleave="dragover = false" @drop.prevent="handleDrop"
-         :class="{ 'dragover': dragover }">
-      <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*,video/*" multiple hidden>
-      <div v-if="!displayUrl" class="upload-prompt" @click="triggerFileInput">
+         :class="{ 'dragover': dragover, 'uploading': uploading }">
+      <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*" multiple hidden>
+      
+      <!-- Estado de carga -->
+      <div v-if="uploading" class="upload-progress">
+        <div class="spinner"></div>
+        <p>Subiendo imágenes...</p>
+      </div>
+      
+      <!-- Prompt de subida -->
+      <div v-else-if="!displayUrl" class="upload-prompt" @click="triggerFileInput">
         <span class="icon">📁</span>
-        <p>Arrastra imágenes/videos aquí o haz clic para seleccionar</p>
+        <p>Arrastra imágenes aquí o haz clic para seleccionar</p>
         <p class="help-text">Puedes seleccionar múltiples archivos</p>
       </div>
+      
+      <!-- Preview de imagen -->
       <div v-else class="preview-container">
         <div class="image-wrapper">
           <img v-if="isImage" :src="displayUrl" alt="Preview" class="preview-image clickable-image" 
@@ -21,17 +31,25 @@
           <source :src="displayUrl" :type="fileType">
         </video>
         <button v-if="!props.currentImage" @click.stop="clearFile" class="clear-btn">×</button>
-        <button @click.stop="triggerFileInput" class="change-file-btn">
+        <button @click.stop="triggerFileInput" class="change-file-btn" :disabled="uploading">
           {{ props.currentImage ? '+ Añadir más' : 'Cambiar imagen' }}
         </button>
       </div>
+    </div>
+    
+    <!-- Mostrar errores del store -->
+    <div v-if="store.error" class="error-message">
+      {{ store.error }}
+      <button @click="store.clearError()" class="close-error">×</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useAnnotationStore } from '../stores/annotationStore'
 
+const store = useAnnotationStore()
 const emit = defineEmits(['files-uploaded', 'image-clicked'])
 
 const props = defineProps({
@@ -43,10 +61,17 @@ const dragover = ref(false)
 const files = ref([])
 const previewUrl = ref(null)
 const currentIndex = ref(0)
+const uploading = ref(false)
 
 // Si hay una imagen actual (desde la galería), mostrarla
 const displayUrl = computed(() => {
-  return props.currentImage?.url || previewUrl.value
+  if (props.currentImage?.data) {
+    return `data:${props.currentImage.content_type};base64,${props.currentImage.data}`
+  }
+  if (props.currentImage?._id) {
+    return `http://localhost:5000/api/images/${props.currentImage._id}/data`
+  }
+  return previewUrl.value
 })
 
 const isImage = computed(() => {
@@ -56,14 +81,15 @@ const isImage = computed(() => {
 })
 
 const fileType = computed(() => {
-  if (props.currentImage) return 'image/*'
+  if (props.currentImage) return props.currentImage.content_type || 'image/*'
   return files.value[currentIndex.value]?.type || ''
 })
 
 // Watch para actualizar la preview cuando cambie la imagen actual
 watch(() => props.currentImage, (newImage) => {
   if (newImage) {
-    previewUrl.value = newImage.url
+    // La preview se maneja a través del computed displayUrl
+    previewUrl.value = null
   }
 })
 
@@ -75,23 +101,63 @@ const handleImageClick = () => {
   emit('image-clicked')
 }
 
-const handleFileChange = (e) => {
+const handleFileChange = async (e) => {
   if (e.target.files.length > 0) {
-    files.value = Array.from(e.target.files)
-    // Solo emitir files-uploaded para múltiples archivos
-    emit('files-uploaded', files.value)
-    // No llamar loadPreview aquí para evitar duplicados
+    const fileList = Array.from(e.target.files)
+    await uploadFiles(fileList)
   }
 }
 
-const handleDrop = (e) => {
+const handleDrop = async (e) => {
   dragover.value = false
   if (e.dataTransfer.files.length > 0) {
-    files.value = Array.from(e.dataTransfer.files)
-    // Solo emitir files-uploaded para múltiples archivos
-    emit('files-uploaded', files.value)
-    // No llamar loadPreview aquí para evitar duplicados
+    const fileList = Array.from(e.dataTransfer.files)
+    await uploadFiles(fileList)
   }
+}
+
+const uploadFiles = async (fileList) => {
+  uploading.value = true
+  
+  try {
+    const uploadedImages = []
+    
+    for (const file of fileList) {
+      // Solo procesar imágenes
+      if (file.type.startsWith('image/')) {
+        try {
+          const uploadedImage = await store.uploadImage(file)
+          uploadedImages.push(uploadedImage)
+          
+          // Para la primera imagen, mostrar preview
+          if (uploadedImages.length === 1) {
+            files.value = [file]
+            loadPreview(file)
+          }
+        } catch (error) {
+          console.error(`Error al subir ${file.name}:`, error)
+          // Continuar con el siguiente archivo
+        }
+      }
+    }
+    
+    if (uploadedImages.length > 0) {
+      emit('files-uploaded', uploadedImages)
+    }
+    
+  } catch (error) {
+    console.error('Error en la subida:', error)
+  } finally {
+    uploading.value = false
+  }
+}
+
+const loadPreview = (file) => {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    previewUrl.value = e.target.result
+  }
+  reader.readAsDataURL(file)
 }
 
 const clearFile = () => {
@@ -207,7 +273,78 @@ const clearFile = () => {
   transition: background 0.2s;
 }
 
-.change-file-btn:hover {
+.change-file-btn:hover:not(:disabled) {
   background: #369e6f;
+}
+
+.change-file-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Estilos para estado de carga */
+.upload-area.uploading {
+  border-color: #42b983;
+  background-color: rgba(66, 185, 131, 0.05);
+}
+
+.upload-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #42b983;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.upload-progress p {
+  margin: 0;
+  color: #42b983;
+  font-weight: 500;
+}
+
+/* Estilos para mensajes de error */
+.error-message {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  color: #c33;
+  font-size: 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.close-error {
+  background: none;
+  border: none;
+  color: #c33;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-error:hover {
+  background: rgba(204, 51, 51, 0.1);
+  border-radius: 50%;
 }
 </style>
