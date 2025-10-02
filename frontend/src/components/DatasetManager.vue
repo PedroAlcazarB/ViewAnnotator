@@ -129,7 +129,7 @@ export default {
       newDataset: {
         name: '',
         description: '',
-        folder_path: '/datasets/',
+        folder_path: '/images/',
         categories: ['persona', 'vehiculo', 'objeto']
       },
       categoryInput: ''
@@ -140,7 +140,7 @@ export default {
   },
   watch: {
     'newDataset.name'(newName) {
-      this.newDataset.folder_path = `/datasets/${newName || ''}`
+      this.newDataset.folder_path = `/images/${newName || ''}`
     }
   },
   methods: {

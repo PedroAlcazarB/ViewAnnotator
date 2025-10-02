@@ -46,12 +46,21 @@ def upload_image():
 
     try:
         db = get_db()
+        dataset_id = request.form.get('dataset_id')
+        
+        # Si hay dataset_id, obtener el nombre del dataset para crear la ruta correcta
+        dataset_folder_path = IMAGE_FOLDER  # Por defecto en la carpeta principal
+        if dataset_id:
+            dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+            if dataset:
+                dataset_folder_path = os.path.join(IMAGE_FOLDER, dataset['name'])
+                os.makedirs(dataset_folder_path, exist_ok=True)
         
         # Leer la imagen como bytes
         image_data = image.read()
         
-        # Guardar también una copia física (backup)
-        save_path = os.path.join(IMAGE_FOLDER, image.filename)
+        # Guardar también una copia física (backup) en la carpeta correcta
+        save_path = os.path.join(dataset_folder_path, image.filename)
         with open(save_path, 'wb') as f:
             f.write(image_data)
         
@@ -62,17 +71,21 @@ def upload_image():
         # Convertir imagen a base64 para MongoDB
         image_base64 = base64.b64encode(image_data).decode('utf-8')
         
+        # Guardar ruta relativa para facilitar la organización
+        relative_path = os.path.relpath(save_path, IMAGE_FOLDER) if dataset_id else image.filename
+        
         # Crear documento de imagen
         image_doc = {
             'filename': image.filename,
             'original_name': image.filename,
+            'file_path': relative_path,  # Ruta relativa desde IMAGE_FOLDER
             'data': image_base64,
             'content_type': image.content_type,
             'size': len(image_data),
             'width': width,
             'height': height,
             'upload_date': datetime.utcnow(),
-            'dataset_id': request.form.get('dataset_id'),  # Cambiar de project_id a dataset_id
+            'dataset_id': dataset_id,
             'project_id': request.form.get('project_id', 'default')  # Mantener para compatibilidad
         }
         
@@ -184,8 +197,14 @@ def delete_image(image_id):
             return jsonify({'error': 'Error al eliminar imagen de la base de datos'}), 500
         
         # Eliminar archivo físico si existe
-        if 'filename' in image_doc:
+        file_path = None
+        if 'file_path' in image_doc:
+            file_path = os.path.join(IMAGE_FOLDER, image_doc['file_path'])
+        elif 'filename' in image_doc:
+            # Fallback para imágenes antigas sin file_path
             file_path = os.path.join(IMAGE_FOLDER, image_doc['filename'])
+            
+        if file_path:
             try:
                 if os.path.exists(file_path):
                     os.remove(file_path)
@@ -452,7 +471,7 @@ def create_dataset():
         dataset_doc = {
             'name': data['name'],
             'description': data.get('description', ''),
-            'folder_path': f"/datasets/{data['name']}",
+            'folder_path': f"/images/{data['name']}",
             'categories': data.get('categories', []),
             'created_date': datetime.utcnow(),
             'created_by': data.get('created_by', 'usuario'),
@@ -633,10 +652,14 @@ def import_dataset_zip():
                         # Convertir a base64 para MongoDB
                         image_base64 = base64.b64encode(image_data).decode('utf-8')
                         
+                        # Calcular ruta relativa desde IMAGE_FOLDER
+                        relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
+                        
                         # Crear documento de imagen
                         image_doc = {
                             'filename': filename,
                             'original_name': filename,
+                            'file_path': relative_path,  # Ruta relativa desde IMAGE_FOLDER
                             'data': image_base64,
                             'content_type': f'image/{filename.split(".")[-1].lower()}',
                             'size': len(image_data),
