@@ -9,6 +9,7 @@ from datetime import datetime
 import base64
 from PIL import Image
 import io
+import zipfile
 
 app = Flask(__name__)
 CORS(app)
@@ -690,6 +691,109 @@ def import_dataset_zip():
         
     except Exception as e:
         return jsonify({'error': f'Error al importar dataset: {str(e)}'}), 500
+
+@app.route('/api/datasets/import-images', methods=['POST'])
+def import_images_to_dataset():
+    """Importar imágenes desde un archivo ZIP a un dataset existente"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No se encontró ningún archivo'}), 400
+
+        file = request.files['file']
+        dataset_id = request.form.get('dataset_id')
+        
+        if file.filename == '':
+            return jsonify({'error': 'Nombre de archivo vacío'}), 400
+        
+        if not file.filename.lower().endswith('.zip'):
+            return jsonify({'error': 'Solo se permiten archivos ZIP'}), 400
+            
+        if not dataset_id:
+            return jsonify({'error': 'Se requiere dataset_id'}), 400
+
+        db = get_db()
+        
+        # Verificar que el dataset existe
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado'}), 404
+        
+        dataset_name = dataset['name']
+        dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
+        os.makedirs(dataset_folder, exist_ok=True)
+        
+        # Guardar y extraer ZIP
+        zip_path = os.path.join(dataset_folder, file.filename)
+        file.save(zip_path)
+        
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(dataset_folder)
+        
+        # Eliminar el archivo ZIP después de extraer
+        os.remove(zip_path)
+        
+        # Procesar imágenes encontradas
+        image_count = 0
+        processed_images = []
+        supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp'}
+        
+        for root, dirs, files in os.walk(dataset_folder):
+            for filename in files:
+                if any(filename.lower().endswith(ext) for ext in supported_formats):
+                    file_path = os.path.join(root, filename)
+                    
+                    try:
+                        # Leer y procesar imagen
+                        with open(file_path, 'rb') as img_file:
+                            image_data = img_file.read()
+                        
+                        pil_image = Image.open(io.BytesIO(image_data))
+                        width, height = pil_image.size
+                        
+                        # Convertir a base64 para MongoDB
+                        image_base64 = base64.b64encode(image_data).decode('utf-8')
+                        
+                        # Calcular ruta relativa desde IMAGE_FOLDER
+                        relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
+                        
+                        # Crear documento de imagen
+                        image_doc = {
+                            'filename': filename,
+                            'original_name': filename,
+                            'file_path': relative_path,
+                            'data': image_base64,
+                            'content_type': f'image/{filename.split(".")[-1].lower()}',
+                            'size': len(image_data),
+                            'width': width,
+                            'height': height,
+                            'upload_date': datetime.utcnow(),
+                            'dataset_id': dataset_id
+                        }
+                        
+                        result = db.images.insert_one(image_doc)
+                        image_doc['_id'] = str(result.inserted_id)
+                        processed_images.append(serialize_doc(image_doc))
+                        image_count += 1
+                        
+                    except Exception as e:
+                        print(f"Error procesando imagen {filename}: {e}")
+                        continue
+        
+        # Actualizar contador de imágenes del dataset
+        current_count = db.images.count_documents({'dataset_id': dataset_id})
+        db.datasets.update_one(
+            {'_id': ObjectId(dataset_id)},
+            {'$set': {'image_count': current_count}}
+        )
+        
+        return jsonify({
+            'message': f'Se procesaron {image_count} imágenes desde el ZIP',
+            'image_count': image_count,
+            'images': processed_images
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al importar imágenes: {str(e)}'}), 500
 
 # ==================== HEALTH CHECK ====================
 

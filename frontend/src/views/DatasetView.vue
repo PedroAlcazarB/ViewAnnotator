@@ -209,10 +209,16 @@ export default {
       }
     },
     
-    handleImagesUploaded(uploadedImages) {
+    async handleImagesUploaded(uploadedImages) {
       this.showUploadModal = false
       console.log(`Uploaded ${uploadedImages.length} images successfully`)
-      // El store se actualiza automáticamente
+      
+      // Recargar imágenes para actualizar la galería
+      try {
+        await this.store.loadImages(this.dataset._id)
+      } catch (error) {
+        console.error('Error reloading images after upload:', error)
+      }
     },
     
     handleImageError(event) {

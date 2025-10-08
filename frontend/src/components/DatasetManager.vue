@@ -8,16 +8,6 @@
         <button @click="showCreateModal = true" class="btn btn-success">
           Crear
         </button>
-        <label class="btn btn-primary" for="import-file">
-          Importar
-          <input 
-            id="import-file" 
-            type="file" 
-            accept=".zip" 
-            @change="handleImportFile" 
-            style="display: none;"
-          />
-        </label>
         <button @click="refreshDatasets" class="btn btn-secondary">
           Actualizar
         </button>
@@ -196,40 +186,6 @@ export default {
         alert('Error creating dataset')
       } finally {
         this.loading = false
-      }
-    },
-    
-    async handleImportFile(event) {
-      const file = event.target.files[0]
-      if (!file) return
-      
-      try {
-        this.loading = true
-        this.loadingMessage = 'Importing dataset...'
-        
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('name', file.name.replace('.zip', ''))
-        
-        const response = await fetch('http://localhost:5000/api/datasets/import', {
-          method: 'POST',
-          body: formData
-        })
-        
-        const data = await response.json()
-        
-        if (response.ok) {
-          alert(`Dataset imported successfully with ${data.image_count} images`)
-          await this.loadDatasets()
-        } else {
-          alert('Error importing dataset: ' + data.error)
-        }
-      } catch (error) {
-        console.error('Error importing dataset:', error)
-        alert('Error importing dataset')
-      } finally {
-        this.loading = false
-        event.target.value = ''
       }
     },
     

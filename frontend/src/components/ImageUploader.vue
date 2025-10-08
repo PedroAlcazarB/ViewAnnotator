@@ -3,19 +3,19 @@
     <div class="upload-area" @dragover.prevent="dragover = true" 
          @dragleave="dragover = false" @drop.prevent="handleDrop"
          :class="{ 'dragover': dragover, 'uploading': uploading }">
-      <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*" multiple hidden>
+      <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*,.zip" multiple hidden>
       
       <!-- Estado de carga -->
       <div v-if="uploading" class="upload-progress">
         <div class="spinner"></div>
-        <p>Subiendo imágenes...</p>
+        <p>{{ uploadMessage }}</p>
       </div>
       
       <!-- Prompt de subida -->
       <div v-else-if="!displayUrl" class="upload-prompt" @click="triggerFileInput">
         <span class="icon">📁</span>
-        <p>Arrastra imágenes aquí o haz clic para seleccionar</p>
-        <p class="help-text">Puedes seleccionar múltiples archivos</p>
+        <p>Arrastra imágenes o archivos ZIP aquí o haz clic para seleccionar</p>
+        <p class="help-text">Puedes seleccionar múltiples archivos o un ZIP con imágenes</p>
       </div>
       
       <!-- Preview de imagen -->
@@ -63,6 +63,7 @@ const files = ref([])
 const previewUrl = ref(null)
 const currentIndex = ref(0)
 const uploading = ref(false)
+const uploadMessage = ref('Subiendo imágenes...')
 
 // Si hay una imagen actual (desde la galería), mostrarla
 const displayUrl = computed(() => {
@@ -119,14 +120,27 @@ const handleDrop = async (e) => {
 
 const uploadFiles = async (fileList) => {
   uploading.value = true
+  uploadMessage.value = 'Procesando archivos...'
   
   try {
     const uploadedImages = []
     
     for (const file of fileList) {
-      // Solo procesar imágenes
-      if (file.type.startsWith('image/')) {
+      // Manejar archivos ZIP
+      if (file.type === 'application/zip' || file.name.toLowerCase().endsWith('.zip')) {
         try {
+          uploadMessage.value = `Descomprimiendo y procesando ${file.name}...`
+          const zipImages = await uploadZipFile(file)
+          uploadedImages.push(...zipImages)
+        } catch (error) {
+          console.error(`Error al procesar ZIP ${file.name}:`, error)
+          alert(`Error al procesar el archivo ZIP: ${error.message}`)
+        }
+      }
+      // Manejar imágenes individuales
+      else if (file.type.startsWith('image/')) {
+        try {
+          uploadMessage.value = `Subiendo ${file.name}...`
           const uploadedImage = await store.uploadImage(file, props.datasetId)
           uploadedImages.push(uploadedImage)
           
@@ -150,7 +164,40 @@ const uploadFiles = async (fileList) => {
     console.error('Error en la subida:', error)
   } finally {
     uploading.value = false
+    uploadMessage.value = 'Subiendo imágenes...'
   }
+}
+
+const uploadZipFile = async (zipFile) => {
+  if (!props.datasetId) {
+    throw new Error('Se requiere un dataset para subir archivos ZIP')
+  }
+  
+  const formData = new FormData()
+  formData.append('file', zipFile)
+  formData.append('dataset_id', props.datasetId)
+  
+  const response = await fetch('http://localhost:5000/api/datasets/import-images', {
+    method: 'POST',
+    body: formData
+  })
+  
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(errorData.error || 'Error al procesar el archivo ZIP')
+  }
+  
+  const data = await response.json()
+  const images = data.images || []
+  
+  // Añadir las imágenes al store para que se reflejen inmediatamente
+  if (images.length > 0) {
+    images.forEach(image => {
+      store.images.push(image)
+    })
+  }
+  
+  return images
 }
 
 const loadPreview = (file) => {
