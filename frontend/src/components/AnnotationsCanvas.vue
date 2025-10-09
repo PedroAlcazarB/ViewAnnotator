@@ -31,11 +31,45 @@
               width: ann.bbox[2],
               height: ann.bbox[3],
               stroke: getCategoryColor(ann.category || ann.category_id),
-              strokeWidth: 2,
-              listening: true
+              strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
+              listening: true,
+              draggable: props.activeTool === 'edit'
             }"
-            @click="selectAnnotation(ann)"
+            @click="handleAnnotationClick(ann)"
+            @dragend="handleAnnotationDrag(ann, $event)"
           />
+          
+          <!-- Controles de redimensionado para rectángulos seleccionados -->
+          <template v-if="isSelectedAnnotation(ann) && (ann.type === 'bbox' || !ann.type) && props.activeTool === 'edit'">
+            <!-- Esquina inferior derecha -->
+            <v-rect
+              :config="{
+                x: ann.bbox[0] + ann.bbox[2] - 5,
+                y: ann.bbox[1] + ann.bbox[3] - 5,
+                width: 10,
+                height: 10,
+                fill: getCategoryColor(ann.category || ann.category_id),
+                stroke: '#fff',
+                strokeWidth: 2,
+                draggable: true
+              }"
+              @dragend="handleResize(ann, $event, 'se')"
+            />
+            <!-- Esquina superior izquierda -->
+            <v-rect
+              :config="{
+                x: ann.bbox[0] - 5,
+                y: ann.bbox[1] - 5,
+                width: 10,
+                height: 10,
+                fill: getCategoryColor(ann.category || ann.category_id),
+                stroke: '#fff',
+                strokeWidth: 2,
+                draggable: true
+              }"
+              @dragend="handleResize(ann, $event, 'nw')"
+            />
+          </template>
           
           <!-- Polígonos -->
           <v-line
@@ -43,12 +77,32 @@
             :config="{
               points: ann.points.flat(),
               stroke: getCategoryColor(ann.category || ann.category_id),
-              strokeWidth: 2,
+              strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
               closed: true,
-              listening: true
+              listening: true,
+              draggable: props.activeTool === 'edit'
             }"
-            @click="selectAnnotation(ann)"
+            @click="handleAnnotationClick(ann)"
+            @dragend="handleAnnotationDrag(ann, $event)"
           />
+          
+          <!-- Puntos de control para polígonos seleccionados -->
+          <template v-if="isSelectedAnnotation(ann) && ann.type === 'polygon' && ann.points && props.activeTool === 'edit'">
+            <v-circle
+              v-for="(point, pointIndex) in ann.points"
+              :key="`control-${pointIndex}`"
+              :config="{
+                x: point[0],
+                y: point[1],
+                radius: 5,
+                fill: getCategoryColor(ann.category || ann.category_id),
+                stroke: '#fff',
+                strokeWidth: 2,
+                draggable: true
+              }"
+              @dragend="handlePolygonPointDrag(ann, pointIndex, $event)"
+            />
+          </template>
           
           <!-- Trazos de pincel -->
           <v-line
@@ -59,9 +113,11 @@
               strokeWidth: props.toolSettings?.brush?.radius / 2 || 8,
               lineCap: 'round',
               lineJoin: 'round',
-              listening: true
+              listening: true,
+              draggable: props.activeTool === 'edit'
             }"
-            @click="selectAnnotation(ann)"
+            @click="handleAnnotationClick(ann)"
+            @dragend="handleAnnotationDrag(ann, $event)"
           />
           
           <!-- Puntos clave -->
@@ -73,11 +129,13 @@
               radius: ann.bbox[2]/2,
               stroke: getCategoryColor(ann.category || ann.category_id),
               fill: getCategoryColor(ann.category || ann.category_id),
-              strokeWidth: 2,
+              strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
               listening: true,
+              draggable: props.activeTool === 'edit',
               opacity: 0.8
             }"
-            @click="selectAnnotation(ann)"
+            @click="handleAnnotationClick(ann)"
+            @dragend="handleAnnotationDrag(ann, $event)"
           />
         </template>
 
@@ -150,7 +208,7 @@ const stageConfig = computed(() => ({
 // Cursor según herramienta activa
 const canvasCursor = computed(() => {
   switch(props.activeTool) {
-    case 'select': return 'default'
+    case 'edit': return 'default'
     case 'bbox': return 'crosshair'
     case 'polygon': return 'crosshair'
     case 'brush': return 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'3\' fill=\'%23000\'/%3E%3C/svg%3E") 12 12, auto'
@@ -352,8 +410,11 @@ function startDraw(e) {
   startPt.value = pos
   
   switch(props.activeTool) {
-    case 'select':
-      // No hacer nada, solo seleccionar
+    case 'edit':
+      // En modo edición, solo deseleccionar si se hace clic en el fondo
+      if (e.target === e.target.getStage()) {
+        store.clearSelection()
+      }
       break
       
     case 'bbox':
@@ -565,6 +626,109 @@ async function createKeypoint(pos) {
   } catch (error) {
     console.error('Error al crear anotación keypoint:', error)
   }
+}
+
+// ==================== FUNCIONES DE EDICIÓN ====================
+
+function isSelectedAnnotation(annotation) {
+  return store.selectedAnnotation && store.selectedAnnotation._id === annotation._id
+}
+
+function handleAnnotationClick(annotation) {
+  if (props.activeTool === 'edit') {
+    // Si ya está seleccionada, deseleccionar
+    if (isSelectedAnnotation(annotation)) {
+      store.clearSelection()
+    } else {
+      store.selectAnnotation(annotation)
+    }
+  } else {
+    // Para otras herramientas, mantener la funcionalidad original
+    selectAnnotation(annotation)
+  }
+}
+
+function handleAnnotationDrag(annotation, event) {
+  if (props.activeTool !== 'edit') return
+  
+  const node = event.target
+  const newPos = {
+    x: node.x(),
+    y: node.y()
+  }
+  
+  // Calcular el delta del movimiento
+  const deltaX = newPos.x - (annotation.bbox ? annotation.bbox[0] : 0)
+  const deltaY = newPos.y - (annotation.bbox ? annotation.bbox[1] : 0)
+  
+  // Llamar al método del store para mover la anotación
+  store.moveAnnotation(annotation._id, deltaX, deltaY)
+  
+  // Resetear la posición del nodo para evitar conflictos
+  node.position({ x: annotation.bbox[0], y: annotation.bbox[1] })
+}
+
+function handleResize(annotation, event, corner) {
+  if (props.activeTool !== 'edit') return
+  
+  const node = event.target
+  const newPos = {
+    x: node.x(),
+    y: node.y()
+  }
+  
+  let newWidth, newHeight
+  
+  if (corner === 'se') {
+    // Esquina inferior derecha
+    newWidth = newPos.x + 5 - annotation.bbox[0]
+    newHeight = newPos.y + 5 - annotation.bbox[1]
+  } else if (corner === 'nw') {
+    // Esquina superior izquierda
+    const oldRight = annotation.bbox[0] + annotation.bbox[2]
+    const oldBottom = annotation.bbox[1] + annotation.bbox[3]
+    
+    newWidth = oldRight - (newPos.x + 5)
+    newHeight = oldBottom - (newPos.y + 5)
+    
+    // También necesitamos actualizar la posición
+    store.moveAnnotation(annotation._id, newPos.x + 5 - annotation.bbox[0], newPos.y + 5 - annotation.bbox[1])
+  }
+  
+  // Asegurar tamaños mínimos
+  newWidth = Math.max(newWidth, 10)
+  newHeight = Math.max(newHeight, 10)
+  
+  store.resizeAnnotation(annotation._id, newWidth, newHeight)
+  
+  // Resetear posición del control
+  if (corner === 'se') {
+    node.position({ 
+      x: annotation.bbox[0] + newWidth - 5, 
+      y: annotation.bbox[1] + newHeight - 5 
+    })
+  } else if (corner === 'nw') {
+    node.position({ 
+      x: annotation.bbox[0] - 5, 
+      y: annotation.bbox[1] - 5 
+    })
+  }
+}
+
+function handlePolygonPointDrag(annotation, pointIndex, event) {
+  if (props.activeTool !== 'edit') return
+  
+  const node = event.target
+  const newPos = {
+    x: node.x(),
+    y: node.y()
+  }
+  
+  // Actualizar el punto específico del polígono
+  const newPoints = [...annotation.points]
+  newPoints[pointIndex] = [newPos.x, newPos.y]
+  
+  store.updateAnnotation(annotation._id, { points: newPoints })
 }
 </script>
 

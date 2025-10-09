@@ -3,14 +3,14 @@
     <h3 class="toolbar-title">Herramientas de Anotación</h3>
     
     <div class="tools-grid">
-      <!-- Select Tool -->
+      <!-- Edit Tool -->
       <button
-        :class="['tool-btn', { active: activeTool === 'select' }]"
-        @click="setActiveTool('select')"
-        title="Herramienta de Selección"
+        :class="['tool-btn', { active: activeTool === 'edit' }]"
+        @click="setActiveTool('edit')"
+        title="Editar Anotaciones"
       >
-        <i class="fas fa-hand-pointer"></i>
-        <span>Seleccionar</span>
+        <i class="fas fa-edit"></i>
+        <span>Editar</span>
       </button>
 
       <!-- BBox Tool -->
@@ -65,7 +65,7 @@
     </div>
 
     <!-- Tool Settings Panel -->
-    <div v-if="activeTool && activeTool !== 'select'" class="tool-settings">
+    <div v-if="activeTool && activeTool !== 'edit'" class="tool-settings">
       <h4>Configuración: {{ getToolDisplayName(activeTool) }}</h4>
       
       <!-- Instrucciones específicas -->
@@ -86,6 +86,45 @@
           <small>💡 Arrastra para crear un rectángulo delimitador.</small>
         </div>
       </div>
+
+    <!-- Edit Tool Settings -->
+    <div v-if="activeTool === 'edit'" class="tool-settings">
+      <h4>Modo de Edición</h4>
+      
+      <div class="tool-instructions">
+        <div class="instruction">
+          <small>💡 Haz clic en una anotación para seleccionarla y editarla. Arrastra para mover, usa los controles para redimensionar.</small>
+        </div>
+      </div>
+      
+      <div class="settings-group">
+        <div class="setting-item">
+          <label>Sensibilidad de selección:</label>
+          <input 
+            type="range" 
+            min="1" 
+            max="10" 
+            v-model="toolSettings.edit.tolerance"
+            class="range-input"
+          />
+          <span>{{ toolSettings.edit.tolerance }}px</span>
+        </div>
+        <label>
+          <input 
+            type="checkbox" 
+            v-model="toolSettings.edit.showHandles"
+          />
+          Mostrar controles de redimensionado
+        </label>
+        <label>
+          <input 
+            type="checkbox" 
+            v-model="toolSettings.edit.snapToGrid"
+          />
+          Ajustar a grilla
+        </label>
+      </div>
+    </div>
       
       <!-- BBox Settings -->
       <div v-if="activeTool === 'bbox'" class="settings-group">
@@ -288,6 +327,7 @@ const updateToolSetting = (tool, key, value) => {
 
 const getToolDisplayName = (tool) => {
   const names = {
+    edit: 'Editar',
     bbox: 'Rectángulo',
     polygon: 'Polígono', 
     brush: 'Pincel',
@@ -325,7 +365,7 @@ const emit = defineEmits([
 
 // Inicializar herramienta por defecto
 onMounted(() => {
-  setActiveTool('select')
+  setActiveTool('edit')
 })
 </script>
 

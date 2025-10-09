@@ -15,13 +15,19 @@ export const useAnnotationStore = defineStore('annotation', {
     
     // Estado de la UI
     selectedCategory: null,
-    activeTool: 'select',
+    activeTool: 'edit',
     currentImage: null,
     loading: false,
     error: null,
+    selectedAnnotation: null,
     
     // Configuración de herramientas
     toolSettings: {
+      edit: {
+        tolerance: 5,
+        showHandles: true,
+        snapToGrid: false
+      },
       bbox: {
         autoColor: true,
         strokeColor: '#ff0000'
@@ -415,11 +421,117 @@ export const useAnnotationStore = defineStore('annotation', {
     
     setActiveTool(tool) {
       this.activeTool = tool
+      // Limpiar selección cuando cambiamos de herramienta
+      if (tool !== 'edit') {
+        this.selectedAnnotation = null
+      }
     },
     
     updateToolSettings(tool, settings) {
       if (this.toolSettings[tool]) {
         this.toolSettings[tool] = { ...this.toolSettings[tool], ...settings }
+      }
+    },
+    
+    // ==================== MÉTODOS DE EDICIÓN ====================
+    
+    selectAnnotation(annotation) {
+      this.selectedAnnotation = annotation
+    },
+    
+    clearSelection() {
+      this.selectedAnnotation = null
+    },
+    
+    async updateAnnotation(annotationId, updates) {
+      this.loading = true
+      this.clearError()
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/annotations/${annotationId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updates)
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        
+        // Actualizar en el estado local
+        const index = this.annotations.findIndex(ann => ann._id === annotationId)
+        if (index !== -1) {
+          this.annotations[index] = { ...this.annotations[index], ...updates }
+        }
+        
+        return data.annotation
+        
+      } catch (error) {
+        this.setError(`Error al actualizar anotación: ${error.message}`)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    moveAnnotation(annotationId, deltaX, deltaY) {
+      const annotation = this.annotations.find(ann => ann._id === annotationId)
+      if (!annotation) return
+      
+      if (annotation.type === 'bbox' || !annotation.type) {
+        // Mover rectángulo
+        const newBbox = [
+          annotation.bbox[0] + deltaX,
+          annotation.bbox[1] + deltaY,
+          annotation.bbox[2],
+          annotation.bbox[3]
+        ]
+        this.updateAnnotation(annotationId, { bbox: newBbox })
+      } else if (annotation.type === 'polygon' && annotation.points) {
+        // Mover todos los puntos del polígono
+        const newPoints = annotation.points.map(point => [
+          point[0] + deltaX,
+          point[1] + deltaY
+        ])
+        this.updateAnnotation(annotationId, { points: newPoints })
+      } else if (annotation.type === 'keypoint') {
+        // Mover punto clave
+        const newBbox = [
+          annotation.bbox[0] + deltaX,
+          annotation.bbox[1] + deltaY,
+          annotation.bbox[2],
+          annotation.bbox[3]
+        ]
+        this.updateAnnotation(annotationId, { bbox: newBbox })
+      }
+    },
+    
+    resizeAnnotation(annotationId, newWidth, newHeight) {
+      const annotation = this.annotations.find(ann => ann._id === annotationId)
+      if (!annotation) return
+      
+      if (annotation.type === 'bbox' || !annotation.type) {
+        const newBbox = [
+          annotation.bbox[0],
+          annotation.bbox[1],
+          newWidth,
+          newHeight
+        ]
+        this.updateAnnotation(annotationId, { bbox: newBbox })
+      } else if (annotation.type === 'keypoint') {
+        // Para puntos clave, redimensionar el radio
+        const newRadius = Math.max(newWidth, newHeight) / 2
+        const newBbox = [
+          annotation.bbox[0],
+          annotation.bbox[1],
+          newRadius * 2,
+          newRadius * 2
+        ]
+        this.updateAnnotation(annotationId, { bbox: newBbox })
       }
     },
     
