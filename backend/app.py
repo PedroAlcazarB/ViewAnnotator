@@ -66,7 +66,11 @@ def find_images_in_directory(directory_path, max_depth=3):
                         
                     # Calcular ruta relativa desde el directorio base
                     relative_path = os.path.relpath(file_path, directory_path)
-                    found_images.append((file_path, filename, relative_path))
+                    found_images.append({
+                        'file_path': file_path,
+                        'filename': filename,
+                        'relative_path': relative_path
+                    })
                     
                 except Exception as e:
                     print(f"Archivo no válido ignorado: {filename} - {str(e)}")
@@ -103,7 +107,11 @@ def extract_and_find_images(zip_file_path, extract_path):
         
         # Mover imágenes al directorio final y organizar
         final_images = []
-        for file_path, filename, relative_path in found_images:
+        for image_info in found_images:
+            file_path = image_info['file_path']
+            filename = image_info['filename']
+            relative_path = image_info['relative_path']
+            
             try:
                 # Crear nombre único si hay duplicados
                 final_filename = filename
@@ -848,7 +856,7 @@ def import_dataset_zip():
         dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
         os.makedirs(dataset_folder, exist_ok=True)
         
-        # Descomprimir y procesar ZIP con las nuevas funciones inteligentes
+        # Descomprimir y procesar ZIP
         import tempfile
         
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -858,52 +866,97 @@ def import_dataset_zip():
             # Usar la nueva función para extraer y encontrar imágenes
             found_images = extract_and_find_images(zip_path, dataset_folder)
         
-        # Procesar imágenes encontradas
+        total_images = len(found_images)
+        print(f"Total de imágenes encontradas: {total_images}")
+        
+        # Procesar imágenes por lotes para evitar problemas de memoria y timeout
+        batch_size = 50  # Procesar de 50 en 50
         image_count = 0
         processed_images = []
+        failed_images = []
         
-        for image_info in found_images:
-            file_path = image_info['file_path']
-            filename = image_info['filename']
-            original_path = image_info['original_path']
+        for i in range(0, total_images, batch_size):
+            batch = found_images[i:i + batch_size]
+            batch_number = (i // batch_size) + 1
+            total_batches = (total_images + batch_size - 1) // batch_size
             
-            try:
-                # Leer y procesar imagen
-                with open(file_path, 'rb') as img_file:
-                    image_data = img_file.read()
+            print(f"Procesando lote {batch_number}/{total_batches} ({len(batch)} imágenes)")
+            
+            # Preparar documentos del lote
+            batch_docs = []
+            
+            for image_info in batch:
+                file_path = image_info['file_path']
+                filename = image_info['filename']
+                original_path = image_info['original_path']
                 
-                # Reabrir para obtener dimensiones (verify() cierra la imagen)
-                pil_image = Image.open(file_path)
-                width, height = pil_image.size
-                pil_image.close()
-                
-                # Convertir a base64 para MongoDB
-                image_base64 = base64.b64encode(image_data).decode('utf-8')
-                
-                # Calcular ruta relativa desde IMAGE_FOLDER
-                relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
-                
-                # Crear documento de imagen con información adicional
-                image_doc = {
-                    'filename': filename,
-                    'original_name': filename,
-                    'file_path': relative_path,
-                    'original_zip_path': original_path,  # Ruta original dentro del ZIP
-                    'data': image_base64,
-                    'content_type': f'image/{filename.split(".")[-1].lower()}',
-                    'size': len(image_data),
-                    'width': width,
-                    'height': height,
-                    'upload_date': datetime.utcnow(),
-                    'dataset_id': dataset_id
-                }
-                
-                db.images.insert_one(image_doc)
-                image_count += 1
-                
-            except Exception as e:
-                print(f"Error procesando imagen {filename}: {e}")
-                continue
+                try:
+                    # Leer y procesar imagen
+                    with open(file_path, 'rb') as img_file:
+                        image_data = img_file.read()
+                    
+                    # Verificar tamaño de imagen (limitar a 10MB)
+                    if len(image_data) > 10 * 1024 * 1024:  # 10MB
+                        print(f"Imagen {filename} demasiado grande ({len(image_data)} bytes), omitiendo")
+                        failed_images.append({'filename': filename, 'reason': 'Tamaño excesivo'})
+                        continue
+                    
+                    # Reabrir para obtener dimensiones (verify() cierra la imagen)
+                    pil_image = Image.open(file_path)
+                    width, height = pil_image.size
+                    pil_image.close()
+                    
+                    # Convertir a base64 para MongoDB
+                    image_base64 = base64.b64encode(image_data).decode('utf-8')
+                    
+                    # Calcular ruta relativa desde IMAGE_FOLDER
+                    relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
+                    
+                    # Crear documento de imagen con información adicional
+                    image_doc = {
+                        'filename': filename,
+                        'original_name': filename,
+                        'file_path': relative_path,
+                        'original_zip_path': original_path,  # Ruta original dentro del ZIP
+                        'data': image_base64,
+                        'content_type': f'image/{filename.split(".")[-1].lower()}',
+                        'size': len(image_data),
+                        'width': width,
+                        'height': height,
+                        'upload_date': datetime.utcnow(),
+                        'dataset_id': dataset_id
+                    }
+                    
+                    batch_docs.append(image_doc)
+                    
+                except Exception as e:
+                    print(f"Error procesando imagen {filename}: {e}")
+                    failed_images.append({'filename': filename, 'reason': str(e)})
+                    continue
+            
+            # Insertar lote completo en MongoDB
+            if batch_docs:
+                try:
+                    result = db.images.insert_many(batch_docs)
+                    image_count += len(result.inserted_ids)
+                    print(f"Lote {batch_number} insertado: {len(result.inserted_ids)} imágenes")
+                except Exception as e:
+                    print(f"Error insertando lote {batch_number}: {e}")
+                    # Intentar insertar una por una como fallback
+                    for doc in batch_docs:
+                        try:
+                            db.images.insert_one(doc)
+                            image_count += 1
+                        except Exception as single_error:
+                            print(f"Error insertando imagen individual {doc['filename']}: {single_error}")
+                            failed_images.append({'filename': doc['filename'], 'reason': str(single_error)})
+            
+            # Limpiar memoria del lote
+            del batch_docs
+            
+            print(f"Progreso: {image_count}/{total_images} imágenes procesadas")
+        
+        print(f"Procesamiento completado: {image_count} imágenes exitosas, {len(failed_images)} fallos")
         
         # Actualizar contador de imágenes
         db.datasets.update_one(
@@ -911,11 +964,23 @@ def import_dataset_zip():
             {'$set': {'image_count': image_count}}
         )
         
-        return jsonify({
-            'message': f'Dataset importado correctamente con {image_count} imágenes',
+        # Preparar respuesta con estadísticas detalladas
+        response_data = {
+            'message': f'Dataset importado: {image_count} de {total_images} imágenes procesadas',
             'dataset_id': dataset_id,
-            'image_count': image_count
-        })
+            'total_found': total_images,
+            'successfully_imported': image_count,
+            'failed_imports': len(failed_images),
+            'success_rate': round((image_count / total_images * 100), 2) if total_images > 0 else 0
+        }
+        
+        # Incluir información de fallos si los hay (máximo 10 para no sobrecargar)
+        if failed_images:
+            response_data['sample_failures'] = failed_images[:10]
+            if len(failed_images) > 10:
+                response_data['additional_failures'] = len(failed_images) - 10
+        
+        return jsonify(response_data)
         
     except Exception as e:
         return jsonify({'error': f'Error al importar dataset: {str(e)}'}), 500
@@ -950,64 +1015,267 @@ def import_images_to_dataset():
         dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
         os.makedirs(dataset_folder, exist_ok=True)
         
-        # Guardar ZIP temporalmente
-        zip_path = os.path.join(dataset_folder, file.filename)
-        file.save(zip_path)
+        # Usar directorio temporal para el ZIP (fuera del volumen monitoreado)
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = os.path.join(temp_dir, file.filename)
+            file.save(zip_path)
+            
+            # Extraer y buscar imágenes usando la nueva función
+            found_images = extract_and_find_images(zip_path, dataset_folder)
         
-        # Extraer y buscar imágenes usando la nueva función
-        found_images = extract_and_find_images(zip_path, dataset_folder)
+        total_images = len(found_images)
+        print(f"Total de imágenes encontradas para importar: {total_images}")
         
-        # Eliminar el archivo ZIP después de extraer
-        os.remove(zip_path)
-        
-        # Procesar imágenes encontradas
+        # Procesar imágenes por lotes para evitar problemas de memoria y timeout
+        batch_size = 50  # Procesar de 50 en 50
         image_count = 0
         processed_images = []
+        failed_images = []
         
-        for image_info in found_images:
-            file_path = image_info['file_path']
-            filename = image_info['filename']
-            original_path = image_info['original_path']
+        for i in range(0, total_images, batch_size):
+            batch = found_images[i:i + batch_size]
+            batch_number = (i // batch_size) + 1
+            total_batches = (total_images + batch_size - 1) // batch_size
             
-            try:
-                # Leer y procesar imagen
-                with open(file_path, 'rb') as img_file:
-                    image_data = img_file.read()
+            print(f"Procesando lote {batch_number}/{total_batches} ({len(batch)} imágenes)")
+            
+            # Preparar documentos del lote
+            batch_docs = []
+            
+            for image_info in batch:
+                file_path = image_info['file_path']
+                filename = image_info['filename']
+                original_path = image_info['original_path']
                 
-                # Reabrir para obtener dimensiones (verify() cierra la imagen)
-                pil_image = Image.open(file_path)
-                width, height = pil_image.size
-                pil_image.close()
+                try:
+                    # Leer y procesar imagen
+                    with open(file_path, 'rb') as img_file:
+                        image_data = img_file.read()
+                    
+                    # Verificar tamaño de imagen (limitar a 10MB)
+                    if len(image_data) > 10 * 1024 * 1024:  # 10MB
+                        print(f"Imagen {filename} demasiado grande ({len(image_data)} bytes), omitiendo")
+                        failed_images.append({'filename': filename, 'reason': 'Tamaño excesivo'})
+                        continue
+                    
+                    # Reabrir para obtener dimensiones (verify() cierra la imagen)
+                    pil_image = Image.open(file_path)
+                    width, height = pil_image.size
+                    pil_image.close()
+                    
+                    # Convertir a base64 para MongoDB
+                    image_base64 = base64.b64encode(image_data).decode('utf-8')
+                    
+                    # Calcular ruta relativa desde IMAGE_FOLDER
+                    relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
+                    
+                    # Crear documento de imagen con información adicional
+                    image_doc = {
+                        'filename': filename,
+                        'original_name': filename,
+                        'file_path': relative_path,
+                        'original_zip_path': original_path,  # Ruta original dentro del ZIP
+                        'data': image_base64,
+                        'content_type': f'image/{filename.split(".")[-1].lower()}',
+                        'size': len(image_data),
+                        'width': width,
+                        'height': height,
+                        'upload_date': datetime.utcnow(),
+                        'dataset_id': dataset_id
+                    }
+                    
+                    batch_docs.append(image_doc)
+                    
+                except Exception as e:
+                    print(f"Error procesando imagen {filename}: {e}")
+                    failed_images.append({'filename': filename, 'reason': str(e)})
+                    continue
+            
+            # Insertar lote completo en MongoDB
+            if batch_docs:
+                try:
+                    result = db.images.insert_many(batch_docs)
+                    image_count += len(result.inserted_ids)
+                    print(f"Lote {batch_number} insertado: {len(result.inserted_ids)} imágenes")
+                    
+                    # Agregar IDs a processed_images para compatibilidad
+                    for i, doc in enumerate(batch_docs):
+                        doc['_id'] = str(result.inserted_ids[i])
+                        processed_images.append(serialize_doc(doc))
+                        
+                except Exception as e:
+                    print(f"Error insertando lote {batch_number}: {e}")
+                    # Intentar insertar una por una como fallback
+                    for doc in batch_docs:
+                        try:
+                            result = db.images.insert_one(doc)
+                            doc['_id'] = str(result.inserted_id)
+                            processed_images.append(serialize_doc(doc))
+                            image_count += 1
+                        except Exception as single_error:
+                            print(f"Error insertando imagen individual {doc['filename']}: {single_error}")
+                            failed_images.append({'filename': doc['filename'], 'reason': str(single_error)})
+            
+            # Limpiar memoria del lote
+            del batch_docs
+            
+            print(f"Progreso: {image_count}/{total_images} imágenes procesadas")
+        
+        print(f"Procesamiento completado: {image_count} imágenes exitosas, {len(failed_images)} fallos")
+        
+        # Actualizar contador de imágenes del dataset
+        current_count = db.images.count_documents({'dataset_id': dataset_id})
+        db.datasets.update_one(
+            {'_id': ObjectId(dataset_id)},
+            {'$set': {'image_count': current_count}}
+        )
+        
+        # Preparar respuesta con estadísticas detalladas
+        response_data = {
+            'message': f'Imágenes importadas: {image_count} de {total_images} procesadas exitosamente',
+            'total_found': total_images,
+            'successfully_imported': image_count,
+            'failed_imports': len(failed_images),
+            'success_rate': round((image_count / total_images * 100), 2) if total_images > 0 else 0,
+            'images': processed_images[:10]  # Solo primeras 10 para no sobrecargar la respuesta
+        }
+        
+        # Incluir información de fallos si los hay (máximo 10 para no sobrecargar)
+        if failed_images:
+            response_data['sample_failures'] = failed_images[:10]
+            if len(failed_images) > 10:
+                response_data['additional_failures'] = len(failed_images) - 10
+        
+        if len(processed_images) > 10:
+            response_data['additional_images'] = len(processed_images) - 10
+            
+        return jsonify(response_data)
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al importar imágenes: {str(e)}'}), 500
+
+@app.route('/api/datasets/<dataset_id>/reprocess-images', methods=['POST'])
+def reprocess_images_from_folder(dataset_id):
+    """Reprocesar imágenes que están en carpeta pero no en base de datos"""
+    try:
+        db = get_db()
+        
+        # Verificar que el dataset existe
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado'}), 404
+        
+        dataset_name = dataset['name']
+        dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
+        
+        if not os.path.exists(dataset_folder):
+            return jsonify({'error': 'Carpeta del dataset no encontrada'}), 404
+        
+        # Buscar imágenes en la carpeta que no estén en la base de datos
+        found_images = find_images_in_directory(dataset_folder)
+        
+        # Filtrar solo las que NO están en la base de datos
+        existing_files = set()
+        existing_images = db.images.find({'dataset_id': dataset_id}, {'filename': 1})
+        for img in existing_images:
+            existing_files.add(img['filename'])
+        
+        new_images = []
+        for img_info in found_images:
+            if img_info['filename'] not in existing_files:
+                new_images.append(img_info)
+        
+        total_images = len(new_images)
+        print(f"Encontradas {total_images} imágenes nuevas para procesar")
+        
+        if total_images == 0:
+            return jsonify({
+                'message': 'No se encontraron imágenes nuevas para procesar',
+                'total_found': 0,
+                'successfully_imported': 0
+            })
+        
+        # Procesar imágenes por lotes
+        batch_size = 50
+        image_count = 0
+        failed_images = []
+        
+        for i in range(0, total_images, batch_size):
+            batch = new_images[i:i + batch_size]
+            batch_number = (i // batch_size) + 1
+            total_batches = (total_images + batch_size - 1) // batch_size
+            
+            print(f"Reprocesando lote {batch_number}/{total_batches} ({len(batch)} imágenes)")
+            
+            batch_docs = []
+            
+            for image_info in batch:
+                file_path = image_info['file_path']
+                filename = image_info['filename']
                 
-                # Convertir a base64 para MongoDB
-                image_base64 = base64.b64encode(image_data).decode('utf-8')
-                
-                # Calcular ruta relativa desde IMAGE_FOLDER
-                relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
-                
-                # Crear documento de imagen con información adicional
-                image_doc = {
-                    'filename': filename,
-                    'original_name': filename,
-                    'file_path': relative_path,
-                    'original_zip_path': original_path,  # Ruta original dentro del ZIP
-                    'data': image_base64,
-                    'content_type': f'image/{filename.split(".")[-1].lower()}',
-                    'size': len(image_data),
-                    'width': width,
-                    'height': height,
-                    'upload_date': datetime.utcnow(),
-                    'dataset_id': dataset_id
-                }
-                
-                result = db.images.insert_one(image_doc)
-                image_doc['_id'] = str(result.inserted_id)
-                processed_images.append(serialize_doc(image_doc))
-                image_count += 1
-                
-            except Exception as e:
-                print(f"Error procesando imagen {filename}: {e}")
-                continue
+                try:
+                    # Leer y procesar imagen
+                    with open(file_path, 'rb') as img_file:
+                        image_data = img_file.read()
+                    
+                    # Verificar tamaño de imagen (limitar a 10MB)
+                    if len(image_data) > 10 * 1024 * 1024:  # 10MB
+                        print(f"Imagen {filename} demasiado grande ({len(image_data)} bytes), omitiendo")
+                        failed_images.append({'filename': filename, 'reason': 'Tamaño excesivo'})
+                        continue
+                    
+                    # Obtener dimensiones
+                    pil_image = Image.open(file_path)
+                    width, height = pil_image.size
+                    pil_image.close()
+                    
+                    # Convertir a base64 para MongoDB
+                    image_base64 = base64.b64encode(image_data).decode('utf-8')
+                    
+                    # Calcular ruta relativa desde IMAGE_FOLDER
+                    relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
+                    
+                    # Crear documento de imagen
+                    image_doc = {
+                        'filename': filename,
+                        'original_name': filename,
+                        'file_path': relative_path,
+                        'data': image_base64,
+                        'content_type': f'image/{filename.split(".")[-1].lower()}',
+                        'size': len(image_data),
+                        'width': width,
+                        'height': height,
+                        'upload_date': datetime.utcnow(),
+                        'dataset_id': dataset_id
+                    }
+                    
+                    batch_docs.append(image_doc)
+                    
+                except Exception as e:
+                    print(f"Error procesando imagen {filename}: {e}")
+                    failed_images.append({'filename': filename, 'reason': str(e)})
+                    continue
+            
+            # Insertar lote completo en MongoDB
+            if batch_docs:
+                try:
+                    result = db.images.insert_many(batch_docs)
+                    image_count += len(result.inserted_ids)
+                    print(f"Lote {batch_number} insertado: {len(result.inserted_ids)} imágenes")
+                except Exception as e:
+                    print(f"Error insertando lote {batch_number}: {e}")
+                    # Intentar insertar una por una como fallback
+                    for doc in batch_docs:
+                        try:
+                            db.images.insert_one(doc)
+                            image_count += 1
+                        except Exception as single_error:
+                            print(f"Error insertando imagen individual {doc['filename']}: {single_error}")
+                            failed_images.append({'filename': doc['filename'], 'reason': str(single_error)})
+            
+            del batch_docs
+            print(f"Progreso: {image_count}/{total_images} imágenes reprocesadas")
         
         # Actualizar contador de imágenes del dataset
         current_count = db.images.count_documents({'dataset_id': dataset_id})
@@ -1017,13 +1285,16 @@ def import_images_to_dataset():
         )
         
         return jsonify({
-            'message': f'Se procesaron {image_count} imágenes desde el ZIP',
-            'image_count': image_count,
-            'images': processed_images
+            'message': f'Reprocesamiento completado: {image_count} de {total_images} imágenes añadidas',
+            'total_found': total_images,
+            'successfully_imported': image_count,
+            'failed_imports': len(failed_images),
+            'success_rate': round((image_count / total_images * 100), 2) if total_images > 0 else 0,
+            'sample_failures': failed_images[:10] if failed_images else []
         })
         
     except Exception as e:
-        return jsonify({'error': f'Error al importar imágenes: {str(e)}'}), 500
+        return jsonify({'error': f'Error al reprocesar imágenes: {str(e)}'}), 500
 
 # ==================== IMPORTAR ANOTACIONES ====================
 
