@@ -1,3 +1,24 @@
-/home/pedro/VISILAB-Annotator/backend/images/4844069788_fe6c93468e_z.jpg
-/home/pedro/VISILAB-Annotator/backend/images/Imagen de WhatsApp 2025-08-28 a las 12.38.45_8addab9a.jpg
-/home/pedro/VISILAB-Annotator/backend/images/Parts-and-Expressions-Aptis-Writing-Part-4_page-0001-708x1024.jpg
+# Datos de MongoDB (no versionar los datos de la base de datos)
+mongodb/data/*
+mongodb/logs/*
+
+# Mantener las carpetas pero vacías
+!mongodb/data/.gitkeep
+!mongodb/logs/.gitkeep
+
+# Node modules
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
