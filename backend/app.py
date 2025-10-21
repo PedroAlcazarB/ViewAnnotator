@@ -1784,14 +1784,14 @@ def export_annotations(dataset_id):
         image_ids = [str(img['_id']) for img in images]
         annotations = list(db.annotations.find({'image_id': {'$in': image_ids}}))
         
-        print(f"Exportando: {len(images)} imágenes, {len(annotations)} anotaciones, {len(categories)} categorías")
-        
         # Obtener categorías
         categories = list(db.categories.find({'project_id': dataset.get('project_id', 'default')}))
         
         # Si no hay categorías específicas del proyecto, obtener todas
         if not categories:
             categories = list(db.categories.find())
+        
+        print(f"Exportando: {len(images)} imágenes, {len(annotations)} anotaciones, {len(categories)} categorías")
         
         if export_format == 'coco':
             return export_coco_format(dataset, images, annotations, categories, include_images)
@@ -1808,6 +1808,54 @@ def export_annotations(dataset_id):
         print(f"Error al exportar anotaciones: {e}")
         import traceback
         traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/annotations/export-stats/<dataset_id>', methods=['GET'])
+def get_export_statistics(dataset_id):
+    """Obtener estadísticas de exportación sin realizar la exportación"""
+    try:
+        db = get_db()
+        
+        # Obtener parámetros (los mismos que el endpoint de exportación)
+        only_annotated = request.args.get('only_annotated', 'true').lower() == 'true'
+        
+        # Obtener dataset
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado'}), 404
+        
+        # Obtener imágenes
+        image_query = {'dataset_id': dataset_id}
+        all_images = list(db.images.find(image_query))
+        
+        # Filtrar imágenes según parámetros
+        if only_annotated:
+            image_ids = [str(img['_id']) for img in all_images]
+            annotated_image_ids = db.annotations.distinct('image_id', {'image_id': {'$in': image_ids}})
+            filtered_images = [img for img in all_images if str(img['_id']) in annotated_image_ids]
+        else:
+            filtered_images = all_images
+        
+        # Obtener anotaciones de las imágenes filtradas
+        filtered_image_ids = [str(img['_id']) for img in filtered_images]
+        annotations_count = db.annotations.count_documents({'image_id': {'$in': filtered_image_ids}})
+        
+        # Obtener categorías
+        categories = list(db.categories.find({'project_id': dataset.get('project_id', 'default')}))
+        if not categories:
+            categories = list(db.categories.find())
+        
+        return jsonify({
+            'images': len(filtered_images),
+            'annotations': annotations_count,
+            'categories': len(categories),
+            'total_images_in_dataset': len(all_images)
+        })
+        
+    except InvalidId:
+        return jsonify({'error': 'ID de dataset inválido'}), 400
+    except Exception as e:
+        print(f"Error al obtener estadísticas de exportación: {e}")
         return jsonify({'error': str(e)}), 500
 
 def export_coco_format(dataset, images, annotations, categories, include_images):

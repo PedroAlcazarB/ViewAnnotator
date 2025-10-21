@@ -252,13 +252,8 @@ export default {
         this.progress = 100
         this.progressMessage = '¡Exportación completada!'
 
-        // Obtener estadísticas de la exportación
-        // En una implementación real, estas vendrían del backend
-        this.exportResult = {
-          images: 0,
-          annotations: 0,
-          categories: 0
-        }
+        // Obtener estadísticas reales de la exportación
+        await this.fetchExportStats()
 
         // Esperar un poco antes de permitir cerrar
         setTimeout(() => {
@@ -270,6 +265,48 @@ export default {
         alert(`Error al exportar anotaciones: ${error.message}`)
         this.exporting = false
         this.progress = 0
+      }
+    },
+    async fetchExportStats() {
+      try {
+        // Crear parámetros para las estadísticas (mismo filtro que la exportación)
+        const params = new URLSearchParams({
+          only_annotated: this.onlyAnnotated
+        })
+
+        const response = await fetch(
+          `http://localhost:5000/api/annotations/export-stats/${this.datasetId}?${params}`,
+          {
+            method: 'GET'
+          }
+        )
+
+        if (!response.ok) {
+          console.error('Error al obtener estadísticas de exportación')
+          // Usar valores por defecto si falla
+          this.exportResult = {
+            images: 0,
+            annotations: 0,
+            categories: 0
+          }
+          return
+        }
+
+        const stats = await response.json()
+        this.exportResult = {
+          images: stats.images || 0,
+          annotations: stats.annotations || 0,
+          categories: stats.categories || 0
+        }
+
+      } catch (error) {
+        console.error('Error al obtener estadísticas:', error)
+        // Usar valores por defecto si falla
+        this.exportResult = {
+          images: 0,
+          annotations: 0,
+          categories: 0
+        }
       }
     }
   }
