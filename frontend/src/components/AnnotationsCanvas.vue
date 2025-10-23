@@ -30,52 +30,133 @@
               y: ann.bbox[1],
               width: ann.bbox[2],
               height: ann.bbox[3],
+              fill: getCategoryColor(ann.category || ann.category_id) + '40',
               stroke: getCategoryColor(ann.category || ann.category_id),
               strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
               listening: true,
               draggable: props.activeTool === 'edit'
             }"
             @click="handleAnnotationClick(ann)"
-            @dragend="handleAnnotationDrag(ann, $event)"
+            @dragmove="handleAnnotationDrag(ann, $event)"
+            @dragend="handleAnnotationDragEnd(ann, $event)"
           />
           
           <!-- Controles de redimensionado para rectángulos seleccionados -->
           <template v-if="isSelectedAnnotation(ann) && (ann.type === 'bbox' || !ann.type) && props.activeTool === 'edit'">
-            <!-- Esquina inferior derecha -->
-            <v-rect
+            <!-- Esquinas -->
+            <v-circle
               :config="{
-                x: ann.bbox[0] + ann.bbox[2] - 5,
-                y: ann.bbox[1] + ann.bbox[3] - 5,
-                width: 10,
-                height: 10,
-                fill: getCategoryColor(ann.category || ann.category_id),
-                stroke: '#fff',
+                x: ann.bbox[0],
+                y: ann.bbox[1],
+                radius: 6,
+                fill: '#ffffff',
+                stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
-                draggable: true
+                draggable: true,
+                dragBoundFunc: (pos) => pos
               }"
-              @dragend="handleResize(ann, $event, 'se')"
+              @dragmove="handleResizeDrag(ann, $event, 'nw')"
             />
-            <!-- Esquina superior izquierda -->
-            <v-rect
+            <v-circle
               :config="{
-                x: ann.bbox[0] - 5,
-                y: ann.bbox[1] - 5,
-                width: 10,
-                height: 10,
-                fill: getCategoryColor(ann.category || ann.category_id),
-                stroke: '#fff',
+                x: ann.bbox[0] + ann.bbox[2],
+                y: ann.bbox[1],
+                radius: 6,
+                fill: '#ffffff',
+                stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
-                draggable: true
+                draggable: true,
+                dragBoundFunc: (pos) => pos
               }"
-              @dragend="handleResize(ann, $event, 'nw')"
+              @dragmove="handleResizeDrag(ann, $event, 'ne')"
+            />
+            <v-circle
+              :config="{
+                x: ann.bbox[0],
+                y: ann.bbox[1] + ann.bbox[3],
+                radius: 6,
+                fill: '#ffffff',
+                stroke: getCategoryColor(ann.category || ann.category_id),
+                strokeWidth: 2,
+                draggable: true,
+                dragBoundFunc: (pos) => pos
+              }"
+              @dragmove="handleResizeDrag(ann, $event, 'sw')"
+            />
+            <v-circle
+              :config="{
+                x: ann.bbox[0] + ann.bbox[2],
+                y: ann.bbox[1] + ann.bbox[3],
+                radius: 6,
+                fill: '#ffffff',
+                stroke: getCategoryColor(ann.category || ann.category_id),
+                strokeWidth: 2,
+                draggable: true,
+                dragBoundFunc: (pos) => pos
+              }"
+              @dragmove="handleResizeDrag(ann, $event, 'se')"
+            />
+            <!-- Bordes -->
+            <v-circle
+              :config="{
+                x: ann.bbox[0] + ann.bbox[2] / 2,
+                y: ann.bbox[1],
+                radius: 6,
+                fill: '#ffffff',
+                stroke: getCategoryColor(ann.category || ann.category_id),
+                strokeWidth: 2,
+                draggable: true,
+                dragBoundFunc: (pos) => pos
+              }"
+              @dragmove="handleResizeDrag(ann, $event, 'n')"
+            />
+            <v-circle
+              :config="{
+                x: ann.bbox[0] + ann.bbox[2] / 2,
+                y: ann.bbox[1] + ann.bbox[3],
+                radius: 6,
+                fill: '#ffffff',
+                stroke: getCategoryColor(ann.category || ann.category_id),
+                strokeWidth: 2,
+                draggable: true,
+                dragBoundFunc: (pos) => pos
+              }"
+              @dragmove="handleResizeDrag(ann, $event, 's')"
+            />
+            <v-circle
+              :config="{
+                x: ann.bbox[0],
+                y: ann.bbox[1] + ann.bbox[3] / 2,
+                radius: 6,
+                fill: '#ffffff',
+                stroke: getCategoryColor(ann.category || ann.category_id),
+                strokeWidth: 2,
+                draggable: true,
+                dragBoundFunc: (pos) => pos
+              }"
+              @dragmove="handleResizeDrag(ann, $event, 'w')"
+            />
+            <v-circle
+              :config="{
+                x: ann.bbox[0] + ann.bbox[2],
+                y: ann.bbox[1] + ann.bbox[3] / 2,
+                radius: 6,
+                fill: '#ffffff',
+                stroke: getCategoryColor(ann.category || ann.category_id),
+                strokeWidth: 2,
+                draggable: true,
+                dragBoundFunc: (pos) => pos
+              }"
+              @dragmove="handleResizeDrag(ann, $event, 'e')"
             />
           </template>
           
           <!-- Polígonos -->
           <v-line
-            v-if="ann.type === 'polygon' && ann.points"
+            v-if="ann.type === 'polygon' && ann.points && Array.isArray(ann.points) && ann.points.length >= 3"
             :config="{
               points: ann.points.flat(),
+              fill: getCategoryColor(ann.category || ann.category_id) + '40',
               stroke: getCategoryColor(ann.category || ann.category_id),
               strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
               closed: true,
@@ -83,7 +164,8 @@
               draggable: props.activeTool === 'edit'
             }"
             @click="handleAnnotationClick(ann)"
-            @dragend="handleAnnotationDrag(ann, $event)"
+            @dragmove="handleAnnotationDrag(ann, $event)"
+            @dragend="handleAnnotationDragEnd(ann, $event)"
           />
           
           <!-- Puntos de control para polígonos seleccionados -->
@@ -100,6 +182,7 @@
                 strokeWidth: 2,
                 draggable: true
               }"
+              @dragmove="handlePolygonPointDrag(ann, pointIndex, $event)"
               @dragend="handlePolygonPointDrag(ann, pointIndex, $event)"
             />
           </template>
@@ -113,9 +196,11 @@
           v-if="currentPath.length > 1 && props.activeTool === 'polygon'"
           :config="{
             points: currentPath.flat(),
-            stroke: props.toolSettings?.polygon?.strokeColor || 'blue',
+            fill: (getCategoryColor(store.selectedCategory) || '#3498db') + '40',
+            stroke: getCategoryColor(store.selectedCategory) || '#3498db',
             strokeWidth: 2,
             dash: [5, 5],
+            closed: currentPath.length > 2,
             listening: false
           }"
         />
@@ -127,8 +212,10 @@
           :config="{
             x: point[0],
             y: point[1],
-            radius: 3,
-            fill: 'blue',
+            radius: 5,
+            fill: '#ffffff',
+            stroke: getCategoryColor(store.selectedCategory) || '#3498db',
+            strokeWidth: 2,
             listening: false
           }"
         />
@@ -236,7 +323,8 @@ const drawingRect = reactive({
   y: 0,
   width: 0,
   height: 0,
-  stroke: 'blue',
+  fill: '#3498db40',
+  stroke: '#3498db',
   strokeWidth: 2,
   dash: [4, 4]
 })
@@ -260,6 +348,9 @@ function selectAnnotation(annotation) {
   // Aquí puedes agregar lógica para seleccionar/editar anotaciones
 }
 
+// Variable para prevenir eliminaciones duplicadas
+let isDeleting = false
+
 // Eventos de teclado para herramientas
 function handleKeyDown(e) {
   if (e.key === 'Escape') {
@@ -267,11 +358,47 @@ function handleKeyDown(e) {
     if (props.activeTool === 'polygon' && currentPath.value.length > 0) {
       currentPath.value = []
     }
+    // Deseleccionar anotación si hay una seleccionada
+    if (store.selectedAnnotation) {
+      store.clearSelection()
+    }
   } else if (e.key === 'Enter') {
     // Completar polígono con Enter
     if (props.activeTool === 'polygon' && currentPath.value.length >= 3) {
       completePolygon()
     }
+  } else if (e.key === 'Delete' || e.key === 'Backspace') {
+    // Eliminar anotación seleccionada
+    if (store.selectedAnnotation && !isDeleting) {
+      e.preventDefault()
+      deleteSelectedAnnotation()
+    }
+  }
+}
+
+// Función para eliminar anotación seleccionada con protección contra duplicados
+async function deleteSelectedAnnotation() {
+  if (isDeleting || !store.selectedAnnotation) {
+    return
+  }
+  
+  isDeleting = true
+  const annotationId = store.selectedAnnotation._id
+  
+  console.log('Eliminando anotación:', annotationId)
+  
+  try {
+    await store.removeAnnotation(annotationId)
+    store.clearSelection()
+    emit('annotation-saved')
+    console.log('Anotación eliminada exitosamente:', annotationId)
+  } catch (error) {
+    console.error('Error al eliminar anotación:', error)
+  } finally {
+    // Resetear el flag después de un breve delay
+    setTimeout(() => {
+      isDeleting = false
+    }, 100)
   }
 }
 
@@ -328,11 +455,8 @@ watch(
 
       image.value = img
       
-      // Crear canvas oculto para obtener datos de imagen para varita mágica
+      // Crear canvas oculto para obtener datos de imagen
       createImageData(img, scaledWidth, scaledHeight)
-      
-      console.log('Canvas ajustado a:', stageWidth.value, 'x', stageHeight.value)
-      console.log('Imagen configurada:', imageConfig)
     }
     img.onerror = (error) => {
       console.error('Error cargando imagen:', error)
@@ -342,7 +466,7 @@ watch(
   { immediate: true }
 )
 
-// Función para crear datos de imagen para la varita mágica
+// Función para crear datos de imagen
 function createImageData(img, width, height) {
   // Crear canvas oculto
   if (!hiddenCanvas.value) {
@@ -359,7 +483,6 @@ function createImageData(img, width, height) {
   // Obtener los datos de imagen
   try {
     imageData.value = hiddenCtx.value.getImageData(0, 0, width, height)
-    console.log('Datos de imagen creados para varita mágica')
   } catch (e) {
     console.warn('No se pudieron obtener los datos de imagen:', e)
     imageData.value = null
@@ -382,12 +505,16 @@ function startDraw(e) {
       
     case 'bbox':
       drawing.value = true
+      const color = getCategoryColor(store.selectedCategory) || '#3498db'
       Object.assign(drawingRect, { 
         x: pos.x, 
         y: pos.y, 
         width: 0, 
         height: 0,
-        stroke: props.toolSettings?.bbox?.strokeColor || 'blue'
+        fill: color + '40',
+        stroke: color,
+        strokeWidth: 2,
+        dash: [4, 4]
       })
       break
       
@@ -429,11 +556,32 @@ function endDraw() {
       break
       
     case 'eraser':
-      // El borrado ya se hizo durante el arrastre
+      // Limpiar los conjuntos de anotaciones borradas
+      erasedAnnotations.value.clear()
+      deletingAnnotations.value.clear()
       break
   }
   
   drawing.value = false
+}
+
+// Función para verificar si un punto está dentro del polígono usando ray casting
+function isPointInsidePolygon(point, polygon) {
+  if (polygon.length < 3) return true // Si tenemos menos de 3 puntos, consideramos que está "dentro"
+  
+  let inside = false
+  const x = point.x, y = point.y
+  
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1]
+    const xj = polygon[j][0], yj = polygon[j][1]
+    
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside
+    }
+  }
+  
+  return inside
 }
 
 // Funciones específicas para cada herramienta
@@ -451,18 +599,33 @@ function handlePolygonClick(pos) {
   )
   
   if (distance < completeDistance.value && currentPath.value.length >= 3) {
-    // Cerrar polígono
+    // Cerrar polígono haciendo clic cerca del primer punto
     completePolygon()
-  } else {
-    // Agregar nuevo punto
-    const lastPoint = currentPath.value[currentPath.value.length - 1]
-    const lastDistance = Math.sqrt(
-      Math.pow(pos.x - lastPoint[0], 2) + Math.pow(pos.y - lastPoint[1], 2)
-    )
+    return
+  }
+  
+  // Si tenemos al menos 4 puntos, verificar si el nuevo clic está fuera del polígono
+  // Usamos 4 puntos para que el usuario pueda dar forma al polígono antes de la detección automática
+  if (currentPath.value.length >= 4) {
+    const isInside = isPointInsidePolygon(pos, currentPath.value)
     
-    if (lastDistance >= minDistance.value) {
-      currentPath.value.push([pos.x, pos.y])
+    // Si el punto está fuera del polígono, completarlo automáticamente
+    if (!isInside) {
+      console.log('Clic fuera del polígono detectado, completando automáticamente')
+      completePolygon()
+      return
     }
+  }
+  
+  // Agregar nuevo punto si está suficientemente lejos del último punto
+  const lastPoint = currentPath.value[currentPath.value.length - 1]
+  const lastDistance = Math.sqrt(
+    Math.pow(pos.x - lastPoint[0], 2) + Math.pow(pos.y - lastPoint[1], 2)
+  )
+  
+  if (lastDistance >= minDistance.value) {
+    currentPath.value.push([pos.x, pos.y])
+    console.log(`Punto ${currentPath.value.length} agregado al polígono`)
   }
 }
 
@@ -511,24 +674,65 @@ async function completePolygon() {
   currentPath.value = []
 }
 
+const erasedAnnotations = ref(new Set())
+const deletingAnnotations = ref(new Set()) // Para evitar eliminaciones concurrentes
+
 async function eraseAtPosition(pos) {
   // Encontrar anotaciones que intersectan con el área del borrador
   const annotations = store.getAnnotationsByImageId(props.imageId)
   
   for (const ann of annotations) {
-    const annCenterX = ann.bbox[0] + ann.bbox[2] / 2
-    const annCenterY = ann.bbox[1] + ann.bbox[3] / 2
+    // Si ya fue borrada o está siendo borrada, omitir
+    if (erasedAnnotations.value.has(ann._id) || deletingAnnotations.value.has(ann._id)) continue
     
-    const distance = Math.sqrt(
-      Math.pow(pos.x - annCenterX, 2) + Math.pow(pos.y - annCenterY, 2)
-    )
+    let shouldErase = false
     
-    if (distance < eraserRadius.value) {
+    if (ann.type === 'polygon' && ann.points) {
+      // Para polígonos, verificar si algún punto está dentro del círculo del borrador
+      for (const point of ann.points) {
+        const distance = Math.sqrt(
+          Math.pow(pos.x - point[0], 2) + Math.pow(pos.y - point[1], 2)
+        )
+        if (distance < eraserRadius.value) {
+          shouldErase = true
+          break
+        }
+      }
+    } else if (ann.bbox) {
+      // Para rectángulos, verificar intersección con el círculo del borrador
+      const rectLeft = ann.bbox[0]
+      const rectTop = ann.bbox[1]
+      const rectRight = ann.bbox[0] + ann.bbox[2]
+      const rectBottom = ann.bbox[1] + ann.bbox[3]
+      
+      // Encontrar el punto más cercano del rectángulo al centro del borrador
+      const closestX = Math.max(rectLeft, Math.min(pos.x, rectRight))
+      const closestY = Math.max(rectTop, Math.min(pos.y, rectBottom))
+      
+      const distance = Math.sqrt(
+        Math.pow(pos.x - closestX, 2) + Math.pow(pos.y - closestY, 2)
+      )
+      
+      shouldErase = distance < eraserRadius.value
+    }
+    
+    if (shouldErase) {
+      // Marcar como "siendo eliminada" para evitar duplicados
+      deletingAnnotations.value.add(ann._id)
+      
       try {
+        console.log('Eliminando anotación con borrador:', ann._id)
         await store.removeAnnotation(ann._id)
-        emit('annotation-saved') // También emitimos cuando se elimina para actualizar contador
+        erasedAnnotations.value.add(ann._id)
+        emit('annotation-saved')
+        console.log('Anotación eliminada exitosamente:', ann._id)
       } catch (error) {
         console.error('Error al eliminar anotación:', error)
+      } finally {
+        // Remover del set de "siendo eliminadas" después de un breve delay
+        setTimeout(() => {
+          deletingAnnotations.value.delete(ann._id)
+        }, 100)
       }
     }
   }
@@ -563,18 +767,18 @@ function handleAnnotationDrag(annotation, event) {
     y: node.y()
   }
   
-  // Calcular el delta del movimiento
-  const deltaX = newPos.x - (annotation.bbox ? annotation.bbox[0] : 0)
-  const deltaY = newPos.y - (annotation.bbox ? annotation.bbox[1] : 0)
-  
-  // Llamar al método del store para mover la anotación
-  store.moveAnnotation(annotation._id, deltaX, deltaY)
-  
-  // Resetear la posición del nodo para evitar conflictos
-  node.position({ x: annotation.bbox[0], y: annotation.bbox[1] })
+  // Actualizar temporalmente el bbox para que los puntos de control se muevan
+  if (annotation.bbox) {
+    const deltaX = newPos.x - annotation.bbox[0]
+    const deltaY = newPos.y - annotation.bbox[1]
+    
+    // Actualizar las coordenadas del bbox temporalmente
+    annotation.bbox[0] = newPos.x
+    annotation.bbox[1] = newPos.y
+  }
 }
 
-function handleResize(annotation, event, corner) {
+function handleAnnotationDragEnd(annotation, event) {
   if (props.activeTool !== 'edit') return
   
   const node = event.target
@@ -583,42 +787,90 @@ function handleResize(annotation, event, corner) {
     y: node.y()
   }
   
-  let newWidth, newHeight
+  // Calcular el delta del movimiento
+  const deltaX = newPos.x - (annotation.bbox ? annotation.bbox[0] : annotation.points ? annotation.points[0][0] : 0)
+  const deltaY = newPos.y - (annotation.bbox ? annotation.bbox[1] : annotation.points ? annotation.points[0][1] : 0)
   
-  if (corner === 'se') {
-    // Esquina inferior derecha
-    newWidth = newPos.x + 5 - annotation.bbox[0]
-    newHeight = newPos.y + 5 - annotation.bbox[1]
-  } else if (corner === 'nw') {
-    // Esquina superior izquierda
-    const oldRight = annotation.bbox[0] + annotation.bbox[2]
-    const oldBottom = annotation.bbox[1] + annotation.bbox[3]
-    
-    newWidth = oldRight - (newPos.x + 5)
-    newHeight = oldBottom - (newPos.y + 5)
-    
-    // También necesitamos actualizar la posición
-    store.moveAnnotation(annotation._id, newPos.x + 5 - annotation.bbox[0], newPos.y + 5 - annotation.bbox[1])
+  // Llamar al método del store para mover la anotación
+  store.moveAnnotation(annotation._id, deltaX, deltaY)
+  
+  // Resetear la posición del nodo después de actualizar el store
+  if (annotation.bbox) {
+    node.position({ x: annotation.bbox[0], y: annotation.bbox[1] })
+  } else if (annotation.points) {
+    node.position({ x: 0, y: 0 })
+  }
+}
+
+function handleResizeDrag(annotation, event, handle) {
+  if (props.activeTool !== 'edit') return
+  
+  const node = event.target
+  const newPos = {
+    x: node.x(),
+    y: node.y()
   }
   
-  // Asegurar tamaños mínimos
-  newWidth = Math.max(newWidth, 10)
-  newHeight = Math.max(newHeight, 10)
+  const minSize = 10
+  let x = annotation.bbox[0]
+  let y = annotation.bbox[1]
+  let width = annotation.bbox[2]
+  let height = annotation.bbox[3]
   
-  store.resizeAnnotation(annotation._id, newWidth, newHeight)
-  
-  // Resetear posición del control
-  if (corner === 'se') {
-    node.position({ 
-      x: annotation.bbox[0] + newWidth - 5, 
-      y: annotation.bbox[1] + newHeight - 5 
-    })
-  } else if (corner === 'nw') {
-    node.position({ 
-      x: annotation.bbox[0] - 5, 
-      y: annotation.bbox[1] - 5 
-    })
+  // Calcular nuevas dimensiones según el manejador
+  switch (handle) {
+    case 'nw': // Noroeste (superior izquierda)
+      const deltaX_nw = newPos.x - x
+      const deltaY_nw = newPos.y - y
+      x = newPos.x
+      y = newPos.y
+      width = Math.max(width - deltaX_nw, minSize)
+      height = Math.max(height - deltaY_nw, minSize)
+      break
+      
+    case 'ne': // Noreste (superior derecha)
+      const deltaY_ne = newPos.y - y
+      y = newPos.y
+      width = Math.max(newPos.x - x, minSize)
+      height = Math.max(height - deltaY_ne, minSize)
+      break
+      
+    case 'sw': // Suroeste (inferior izquierda)
+      const deltaX_sw = newPos.x - x
+      x = newPos.x
+      width = Math.max(width - deltaX_sw, minSize)
+      height = Math.max(newPos.y - y, minSize)
+      break
+      
+    case 'se': // Sureste (inferior derecha)
+      width = Math.max(newPos.x - x, minSize)
+      height = Math.max(newPos.y - y, minSize)
+      break
+      
+    case 'n': // Norte (arriba)
+      const deltaY_n = newPos.y - y
+      y = newPos.y
+      height = Math.max(height - deltaY_n, minSize)
+      break
+      
+    case 's': // Sur (abajo)
+      height = Math.max(newPos.y - y, minSize)
+      break
+      
+    case 'w': // Oeste (izquierda)
+      const deltaX_w = newPos.x - x
+      x = newPos.x
+      width = Math.max(width - deltaX_w, minSize)
+      break
+      
+    case 'e': // Este (derecha)
+      width = Math.max(newPos.x - x, minSize)
+      break
   }
+  
+  // Actualizar la anotación con las nuevas dimensiones
+  const updatedBbox = [x, y, width, height]
+  store.updateAnnotation(annotation._id, { bbox: updatedBbox })
 }
 
 function handlePolygonPointDrag(annotation, pointIndex, event) {
