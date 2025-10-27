@@ -151,41 +151,47 @@
             />
           </template>
           
-          <!-- Polígonos -->
-          <v-line
+          <!-- Polígonos agrupados con sus puntos de control -->
+          <v-group
             v-if="ann.type === 'polygon' && ann.points && Array.isArray(ann.points) && ann.points.length >= 3"
             :config="{
-              points: ann.points.flat(),
-              fill: getCategoryColor(ann.category || ann.category_id) + '40',
-              stroke: getCategoryColor(ann.category || ann.category_id),
-              strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
-              closed: true,
-              listening: true,
-              draggable: props.activeTool === 'edit'
+              draggable: props.activeTool === 'edit',
+              listening: true
             }"
             @click="handleAnnotationClick(ann)"
             @dragmove="handleAnnotationDrag(ann, $event)"
             @dragend="handleAnnotationDragEnd(ann, $event)"
-          />
-          
-          <!-- Puntos de control para polígonos seleccionados -->
-          <template v-if="isSelectedAnnotation(ann) && ann.type === 'polygon' && ann.points && props.activeTool === 'edit'">
-            <v-circle
-              v-for="(point, pointIndex) in ann.points"
-              :key="`control-${pointIndex}`"
+          >
+            <v-line
               :config="{
-                x: point[0],
-                y: point[1],
-                radius: 5,
-                fill: getCategoryColor(ann.category || ann.category_id),
-                stroke: '#fff',
-                strokeWidth: 2,
-                draggable: true
+                points: ann.points.flat(),
+                fill: getCategoryColor(ann.category || ann.category_id) + '40',
+                stroke: getCategoryColor(ann.category || ann.category_id),
+                strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
+                closed: true,
+                listening: true
               }"
-              @dragmove="handlePolygonPointDrag(ann, pointIndex, $event)"
-              @dragend="handlePolygonPointDrag(ann, pointIndex, $event)"
             />
-          </template>
+            
+            <!-- Puntos de control para polígonos seleccionados -->
+            <template v-if="isSelectedAnnotation(ann) && props.activeTool === 'edit'">
+              <v-circle
+                v-for="(point, pointIndex) in ann.points"
+                :key="`control-${pointIndex}`"
+                :config="{
+                  x: point[0],
+                  y: point[1],
+                  radius: 6,
+                  fill: '#ffffff',
+                  stroke: getCategoryColor(ann.category || ann.category_id),
+                  strokeWidth: 2,
+                  draggable: true
+                }"
+                @dragmove="handlePolygonPointDrag(ann, pointIndex, $event)"
+                @dragend="handlePolygonPointDrag(ann, pointIndex, $event)"
+              />
+            </template>
+          </v-group>
         </template>
 
         <!-- Forma en curso (preview) -->
@@ -767,37 +773,37 @@ function handleAnnotationDrag(annotation, event) {
     y: node.y()
   }
   
-  // Actualizar temporalmente el bbox para que los puntos de control se muevan
   if (annotation.bbox) {
-    const deltaX = newPos.x - annotation.bbox[0]
-    const deltaY = newPos.y - annotation.bbox[1]
-    
-    // Actualizar las coordenadas del bbox temporalmente
+    // Para rectángulos - actualizar bbox temporalmente
     annotation.bbox[0] = newPos.x
     annotation.bbox[1] = newPos.y
   }
+  // Para polígonos agrupados, no necesitamos hacer nada aquí
+  // El v-group maneja automáticamente el movimiento visual
 }
 
 function handleAnnotationDragEnd(annotation, event) {
   if (props.activeTool !== 'edit') return
   
   const node = event.target
-  const newPos = {
-    x: node.x(),
-    y: node.y()
-  }
+  const currentPos = { x: node.x(), y: node.y() }
   
-  // Calcular el delta del movimiento
-  const deltaX = newPos.x - (annotation.bbox ? annotation.bbox[0] : annotation.points ? annotation.points[0][0] : 0)
-  const deltaY = newPos.y - (annotation.bbox ? annotation.bbox[1] : annotation.points ? annotation.points[0][1] : 0)
-  
-  // Llamar al método del store para mover la anotación
-  store.moveAnnotation(annotation._id, deltaX, deltaY)
-  
-  // Resetear la posición del nodo después de actualizar el store
   if (annotation.bbox) {
+    // Para rectángulos - calcular el delta y aplicar
+    const deltaX = currentPos.x - annotation.bbox[0]
+    const deltaY = currentPos.y - annotation.bbox[1]
+    
+    store.moveAnnotation(annotation._id, deltaX, deltaY)
     node.position({ x: annotation.bbox[0], y: annotation.bbox[1] })
-  } else if (annotation.points) {
+  } else if (annotation.points && annotation.type === 'polygon') {
+    // Para polígonos - el grupo se ha movido, usar las coordenadas del grupo como delta
+    const deltaX = currentPos.x
+    const deltaY = currentPos.y
+    
+    // Actualizar las coordenadas del polígono en el store
+    store.moveAnnotation(annotation._id, deltaX, deltaY)
+    
+    // Resetear la posición del grupo a (0, 0)
     node.position({ x: 0, y: 0 })
   }
 }
