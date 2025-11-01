@@ -132,8 +132,8 @@
       <div class="annotator-content">
         <!-- Panel lateral izquierdo -->
         <div class="annotator-sidebar">
-          <CategoryManager />
           <AnnotationToolbar />
+          <CategoryManager />
         </div>
         
         <!-- Canvas principal -->
