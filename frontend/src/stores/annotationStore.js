@@ -9,8 +9,8 @@ export const useAnnotationStore = defineStore('annotation', {
     annotations: [],
     images: [],
     categories: [],
-    categoryVisibility: {}, // Nuevo: visibilidad por dataset
-    annotationVisibility: {}, // Nuevo: visibilidad de anotaciones individuales
+    categoryVisibility: {}, // Visibilidad por dataset
+    annotationVisibility: {}, // Visibilidad de anotaciones individuales
     
     // Contexto del dataset actual
     currentDataset: null,
@@ -70,32 +70,32 @@ export const useAnnotationStore = defineStore('annotation', {
       return state.images.find(img => img._id === id || img.id === id)
     },
 
-    // Nuevo getter para conteo contextual de anotaciones por categoría
+    // Getter para conteo contextual de anotaciones por categoría
     getCategoryAnnotationCount: (state) => (categoryId) => {
       return state.annotations.filter(ann => 
         ann.category_id === categoryId || ann.category === categoryId
       ).length
     },
 
-    // Nuevo getter para verificar si una categoría está oculta
+    // Getter para verificar si una categoría está oculta
     isCategoryHidden: (state) => (categoryId) => {
       if (!state.currentDataset) return false
       return state.categoryVisibility[categoryId] || false
     },
 
-    // Nuevo getter para obtener anotaciones de una categoría específica
+    // Getter para obtener anotaciones de una categoría específica
     getAnnotationsByCategory: (state) => (categoryId) => {
       return state.annotations.filter(ann => 
         ann.category_id === categoryId || ann.category === categoryId
       )
     },
 
-    // Nuevo getter para verificar si una anotación está oculta
+    // Getter para verificar si una anotación está oculta
     isAnnotationHidden: (state) => (annotationId) => {
       return state.annotationVisibility[annotationId] || false
     },
 
-    // Nuevo getter para obtener anotaciones de la imagen actual agrupadas por categoría
+    // Getter para obtener anotaciones de la imagen actual agrupadas por categoría
     getCurrentImageAnnotationsByCategory: (state) => {
       if (!state.currentImage) return {}
       
@@ -116,7 +116,7 @@ export const useAnnotationStore = defineStore('annotation', {
       return groupedAnnotations
     },
 
-    // Nuevo getter para obtener anotaciones visibles de la imagen actual
+    // Getter para obtener anotaciones visibles de la imagen actual
     getVisibleCurrentImageAnnotations: (state) => {
       if (!state.currentImage) return []
       

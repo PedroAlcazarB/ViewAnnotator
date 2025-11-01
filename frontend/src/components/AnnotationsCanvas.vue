@@ -256,9 +256,9 @@
     <div v-if="image" class="debug-canvas-info">
       <p>Canvas: {{ stageWidth }}x{{ stageHeight }}</p>
       <p>Imagen: {{ imageConfig.width }}x{{ imageConfig.height }} en ({{ imageConfig.x }}, {{ imageConfig.y }})</p>
-      <p>Zoom: {{ Math.round(scale * 100) }}% | Pan: ({{ Math.round(stagePos.x) }}, {{ Math.round(stagePos.y) }})</p>
+      <p>Zoom: {{ Math.round(scale * 100) }}% | Desplazamiento: ({{ Math.round(stagePos.x) }}, {{ Math.round(stagePos.y) }})</p>
       <p v-if="props.activeTool === 'pan'"><small>�️ Herramienta Pan activa - Arrastra para mover la vista | Rueda para zoom | 'R' para resetear</small></p>
-      <p v-else><small>�💡 Usa la rueda del ratón para zoom | Tecla 'R' para resetear | Selecciona "Mover" para pan</small></p>
+      <p v-else><small>�💡 Usa la rueda del ratón para zoom | Tecla 'R' para resetear | Selecciona "Mover" para desplazarte</small></p>
     </div>
   </div>
 </template>
@@ -445,8 +445,21 @@ function handleWheel(e) {
 
 function resetZoom() {
   scale.value = 1
-  stagePos.x = 0
-  stagePos.y = 0
+  
+  // Centrar la vista en la imagen cuando está en el canvas expandido
+  if (imageConfig.width && imageConfig.height) {
+    // Calcular la posición para centrar la imagen en la vista
+    const canvasCenterX = stageWidth.value / 2
+    const canvasCenterY = stageHeight.value / 2
+    const imageCenterX = imageConfig.x + imageConfig.width / 2
+    const imageCenterY = imageConfig.y + imageConfig.height / 2
+    
+    stagePos.x = canvasCenterX - imageCenterX
+    stagePos.y = canvasCenterY - imageCenterY
+  } else {
+    stagePos.x = 0
+    stagePos.y = 0
+  }
 }
 
 function getRelativePointerPosition(stage) {
@@ -523,23 +536,43 @@ watch(
       const scaledWidth = img.width * scale
       const scaledHeight = img.height * scale
 
-      // Ajustar el canvas al tamaño de la imagen escalada
-      stageWidth.value = scaledWidth
-      stageHeight.value = scaledHeight
+      // Factor de expansión del canvas para permitir zoom extendido
+      const canvasExpansionFactor = 2.5
+      
+      // Hacer el canvas más grande que la imagen para permitir zoom extendido
+      let canvasWidth = scaledWidth * canvasExpansionFactor
+      let canvasHeight = scaledHeight * canvasExpansionFactor
+      
+      // Limitar el tamaño máximo del canvas para evitar problemas de rendimiento
+      const maxCanvasWidth = Math.min(window.innerWidth - 50, 2000)
+      const maxCanvasHeight = Math.min(window.innerHeight - 100, 1500)
+      
+      canvasWidth = Math.min(canvasWidth, maxCanvasWidth)
+      canvasHeight = Math.min(canvasHeight, maxCanvasHeight)
+      
+      // Centrar la imagen en el canvas expandido
+      const imageX = (canvasWidth - scaledWidth) / 2
+      const imageY = (canvasHeight - scaledHeight) / 2
 
-      // Configurar la imagen para que ocupe todo el canvas
+      stageWidth.value = canvasWidth
+      stageHeight.value = canvasHeight
+
+      // Configurar la imagen centrada en el canvas expandido
       Object.assign(imageConfig, {
         image: img,
         width: scaledWidth,
         height: scaledHeight,
-        x: 0,
-        y: 0
+        x: imageX,
+        y: imageY
       })
 
       image.value = img
       
       // Crear canvas oculto para obtener datos de imagen
       createImageData(img, scaledWidth, scaledHeight)
+      
+      // Centrar la vista en la imagen al cargar
+      resetZoom()
     }
     img.onerror = (error) => {
       console.error('Error cargando imagen:', error)
@@ -1010,6 +1043,9 @@ function handlePolygonPointDrag(annotation, pointIndex, event) {
   justify-content: center;
   align-items: center;
   padding: 1rem;
+  overflow: hidden; /* Ocultar el contenido que se desborde */
+  max-width: 100vw;
+  max-height: 100vh;
 }
 
 .annotation-stage {
@@ -1019,6 +1055,13 @@ function handlePolygonPointDrag(annotation, pointIndex, event) {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 4rem);
+  cursor: grab;
+}
+
+.annotation-stage:active {
+  cursor: grabbing;
 }
 
 .debug-info, .debug-canvas-info {
