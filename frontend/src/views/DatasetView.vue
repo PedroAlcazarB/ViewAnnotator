@@ -697,7 +697,7 @@ export default {
 }
 
 .annotator-sidebar {
-  width: 300px;
+  width: 380px;
   background: #f8f9fa;
   border-right: 1px solid #dee2e6;
   overflow-y: auto;

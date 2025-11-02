@@ -39,60 +39,50 @@
     </div>
 
     <!-- Modal para crear dataset -->
-    <div v-if="showCreateModal" class="modal-overlay" @click="showCreateModal = false">
+    <div v-if="showCreateModal" class="modal-overlay" @click="closeModal" @keydown.esc="closeModal">
       <div class="modal" @click.stop>
         <div class="modal-header">
-          <h2>Creando un Dataset</h2>
-          <button @click="showCreateModal = false" class="close-btn">&times;</button>
+          <h2>Crear Nuevo Dataset</h2>
+          <button @click="closeModal" class="close-btn" aria-label="Cerrar modal">&times;</button>
         </div>
         
         <div class="modal-body">
           <div class="form-group">
-            <label>Nombre del Dataset</label>
+            <label for="dataset-name">Nombre del Dataset</label>
             <input 
+              id="dataset-name"
+              ref="datasetNameInput"
               v-model="newDataset.name" 
               type="text" 
-              placeholder="Nombre del dataset"
+              placeholder="Ej: Detección de vehículos"
               :class="{ 'error': !newDataset.name && showError }"
+              @keydown.enter="createDataset"
+              @keydown.esc="closeModal"
+              autofocus
             />
             <span v-if="!newDataset.name && showError" class="error-text">
-              El nombre del dataset es requerido
+              ⚠️ El nombre del dataset es requerido
             </span>
           </div>
           
           <div class="form-group">
-            <label>Categorías por Defecto</label>
-            <div class="categories-input">
-              <span v-for="(category, index) in newDataset.categories" :key="index" class="category-tag">
-                {{ category }}
-                <button @click="removeCategory(index)" type="button">&times;</button>
-              </span>
-              <input 
-                v-model="categoryInput" 
-                @keydown.enter.prevent="addCategory"
-                type="text" 
-                placeholder="Agregar una categoría"
-              />
+            <label>Directorio</label>
+            <div class="folder-path-display">
+              <span class="path-icon">📁</span>
+              <span class="path-text">{{ newDataset.folder_path }}</span>
             </div>
-          </div>
-          
-          <div class="form-group">
-            <label>Directorio de Carpeta</label>
-            <input 
-              v-model="newDataset.folder_path" 
-              type="text" 
-              readonly
-              class="readonly"
-            />
+            <p class="help-text">Las imágenes se guardarán en este directorio automáticamente</p>
           </div>
         </div>
         
         <div class="modal-footer">
-          <button @click="showCreateModal = false" class="btn btn-secondary">
-            Close
-          </button>
-          <button @click="createDataset" class="btn btn-primary">
-            Create Dataset
+          <button 
+            @click="createDataset" 
+            class="btn btn-primary"
+            :disabled="!newDataset.name.trim()"
+            @keydown.enter="createDataset"
+          >
+            ✓ Crear Dataset
           </button>
         </div>
       </div>
@@ -119,18 +109,29 @@ export default {
       newDataset: {
         name: '',
         description: '',
-        folder_path: '/images/',
-        categories: ['persona', 'vehiculo', 'objeto']
-      },
-      categoryInput: ''
+        folder_path: '/images/'
+      }
     }
   },
   mounted() {
     this.loadDatasets()
+    // Listener global para ESC
+    document.addEventListener('keydown', this.handleGlobalKeydown)
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.handleGlobalKeydown)
   },
   watch: {
     'newDataset.name'(newName) {
       this.newDataset.folder_path = `/images/${newName || ''}`
+    },
+    showCreateModal(newVal) {
+      if (newVal) {
+        // Enfocar el input cuando se abre el modal
+        this.$nextTick(() => {
+          this.$refs.datasetNameInput?.focus()
+        })
+      }
     }
   },
   methods: {
@@ -175,15 +176,15 @@ export default {
         const data = await response.json()
         
         if (response.ok) {
-          this.showCreateModal = false
-          this.resetForm()
+          this.closeModal()
           await this.loadDatasets()
+          alert('✅ Dataset creado exitosamente')
         } else {
-          alert('Error creating dataset: ' + data.error)
+          alert('❌ Error al crear dataset: ' + data.error)
         }
       } catch (error) {
         console.error('Error creating dataset:', error)
-        alert('Error creating dataset')
+        alert('❌ Error al crear dataset')
       } finally {
         this.loading = false
       }
@@ -224,25 +225,23 @@ export default {
       this.loadDatasets()
     },
     
-    addCategory() {
-      if (this.categoryInput.trim() && !this.newDataset.categories.includes(this.categoryInput.trim())) {
-        this.newDataset.categories.push(this.categoryInput.trim())
-        this.categoryInput = ''
-      }
+    closeModal() {
+      this.showCreateModal = false
+      this.resetForm()
     },
     
-    removeCategory(index) {
-      this.newDataset.categories.splice(index, 1)
+    handleGlobalKeydown(e) {
+      if (e.key === 'Escape' && this.showCreateModal) {
+        this.closeModal()
+      }
     },
     
     resetForm() {
       this.newDataset = {
         name: '',
         description: '',
-        folder_path: '/datasets/',
-        categories: ['persona', 'vehiculo', 'objeto']
+        folder_path: '/images/'
       }
-      this.categoryInput = ''
       this.showError = false
     }
   }
@@ -393,117 +392,201 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.6);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal {
   background: white;
-  border-radius: 10px;
+  border-radius: 12px;
   width: 90%;
-  max-width: 500px;
+  max-width: 520px;
   max-height: 90vh;
   overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .modal-header h2 {
   margin: 0;
-  color: #333;
+  color: white;
+  font-size: 1.4rem;
+  font-weight: 600;
 }
 
 .close-btn {
-  background: none;
+  background: rgba(255, 255, 255, 0.2);
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #999;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 28px 24px;
+  max-height: calc(90vh - 180px);
+  overflow-y: auto;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-  color: #333;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.95rem;
 }
 
 .form-group input {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  font-size: 14px;
+  padding: 12px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .form-group input.error {
-  border-color: #dc3545;
+  border-color: #ef4444;
+  background-color: #fef2f2;
 }
 
-.form-group input.readonly {
-  background-color: #f8f9fa;
-  color: #6c757d;
+.form-group input.error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
 }
 
 .error-text {
-  color: #dc3545;
-  font-size: 12px;
-  margin-top: 5px;
+  color: #ef4444;
+  font-size: 13px;
+  margin-top: 6px;
+  display: block;
+  font-weight: 500;
 }
 
-.categories-input {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  padding: 5px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  min-height: 40px;
-  align-items: center;
-}
-
-.category-tag {
-  background-color: #e9ecef;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 12px;
+.folder-path-display {
   display: flex;
   align-items: center;
-  gap: 5px;
-}
-
-.category-tag button {
-  background: none;
-  border: none;
-  cursor: pointer;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #f3f4f6;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-family: 'Monaco', 'Courier New', monospace;
   font-size: 14px;
-  color: #6c757d;
+  color: #374151;
+}
+
+.path-icon {
+  font-size: 18px;
+}
+
+.path-text {
+  flex: 1;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.help-text {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
 }
 
 .modal-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 20px;
-  border-top: 1px solid #e0e0e0;
+  justify-content: center;
+  padding: 20px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
+
+.modal-footer .btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-footer .btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.modal-footer .btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.modal-footer .btn-primary:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 
 /* Loading Overlay */
 .loading-overlay {

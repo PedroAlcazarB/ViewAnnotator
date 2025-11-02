@@ -952,6 +952,9 @@ def delete_dataset(dataset_id):
         for img in images:
             db.annotations.delete_many({'image_id': str(img['_id'])})
         
+        # Eliminar todas las categorías asociadas al dataset
+        categories_result = db.categories.delete_many({'dataset_id': dataset_id})
+        
         # Eliminar todas las imágenes del dataset de la base de datos
         images_result = db.images.delete_many({'dataset_id': dataset_id})
         
@@ -976,6 +979,7 @@ def delete_dataset(dataset_id):
         return jsonify({
             'message': 'Dataset eliminado correctamente',
             'deleted_images': images_result.deleted_count,
+            'deleted_categories': categories_result.deleted_count,
             'deleted_folder': deleted_folder,
             'dataset_name': dataset_name
         })

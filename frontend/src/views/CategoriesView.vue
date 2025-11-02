@@ -74,6 +74,9 @@
           </div>
 
           <div class="card-body">
+            <div class="dataset-info">
+              <span class="dataset-name">{{ getDatasetName(category.dataset_id) }}</span>
+            </div>
             <div v-if="getCategoryAnnotationCount(category.id) > 0" class="annotation-count">
               <i class="fas fa-layer-group"></i>
               <span>{{ getCategoryAnnotationCount(category.id) }} anotaciones</span>
@@ -300,6 +303,11 @@ async function loadCategories() {
     console.error('Error al cargar categorías:', error)
     alert('Error al cargar categorías: ' + error.message)
   }
+}
+
+function getDatasetName(datasetId) {
+  const dataset = datasets.value.find(d => d._id === datasetId)
+  return dataset ? dataset.name : 'Dataset desconocido'
 }
 
 async function createCategory() {
@@ -642,14 +650,38 @@ onMounted(() => {
 
 .card-body {
   padding: 1rem 1.5rem;
-  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dataset-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  padding: 0.4rem 0.8rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.dataset-info i {
+  color: #667eea;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.dataset-name {
+  font-weight: 500;
+  color: #667eea;
 }
 
 .annotation-count {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.75rem;
   font-size: 0.95rem;
 }
 
