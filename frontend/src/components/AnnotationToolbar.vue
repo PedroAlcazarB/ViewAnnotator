@@ -186,8 +186,8 @@
       <button 
         @click="clearCurrentAnnotation"
         class="action-btn danger"
-        :disabled="!hasCurrentAnnotation"
-        title="Limpiar anotación actual"
+        :disabled="!hasImageAnnotations"
+        title="Limpiar todas las anotaciones de la imagen"
       >
         <i class="fas fa-trash"></i>
         Limpiar
@@ -206,8 +206,8 @@
       <button 
         @click="completeAnnotation"
         class="action-btn success"
-        :disabled="!hasCurrentAnnotation"
-        title="Completar anotación"
+        :disabled="!hasImageAnnotations"
+        title="Marcar imagen como completada"
       >
         <i class="fas fa-check"></i>
         Completar
@@ -217,7 +217,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { computed, watch, onMounted } from 'vue'
 import { useAnnotationStore } from '../stores/annotationStore'
 
 const annotationStore = useAnnotationStore()
@@ -230,15 +230,23 @@ const activeTool = computed({
 
 const toolSettings = computed(() => annotationStore.toolSettings)
 
+const currentImageId = computed(() => {
+  const image = annotationStore.currentImage
+  if (!image) return null
+  return image.id || image._id || null
+})
+
 // Computadas
-const hasCurrentAnnotation = computed(() => {
-  if (!annotationStore.currentImage) return false
-  return annotationStore.getCurrentImageAnnotations(annotationStore.currentImage.id).length > 0
+const hasImageAnnotations = computed(() => {
+  const imageId = currentImageId.value
+  if (!imageId) return false
+  return annotationStore.getCurrentImageAnnotations(imageId).length > 0
 })
 
 const canUndo = computed(() => {
-  // Aquí puedes implementar lógica de undo cuando la tengas
-  return false
+  const imageId = currentImageId.value
+  if (!imageId) return false
+  return annotationStore.hasUndoForImage(imageId)
 })
 
 // Métodos
@@ -277,22 +285,36 @@ const getToolDisplayName = (tool) => {
   return names[tool] || tool
 }
 
-const clearCurrentAnnotation = () => {
-  if (annotationStore.currentImage) {
-    // Limpiar las anotaciones de la imagen actual
-    annotationStore.clearAnnotationsForImage(annotationStore.currentImage.id)
-    emit('annotation-cleared')
+const clearCurrentAnnotation = async () => {
+  const imageId = currentImageId.value
+  if (!imageId || !hasImageAnnotations.value) return
+  try {
+    const result = await annotationStore.clearAnnotationsForImage(imageId)
+    if (result) {
+      emit('annotation-cleared', { imageId })
+    }
+  } catch (error) {
+    console.error('Error al limpiar anotaciones:', error)
   }
 }
 
-const undoLastAction = () => {
-  // Implementar lógica de undo
-  emit('undo-action')
+const undoLastAction = async () => {
+  const imageId = currentImageId.value
+  if (!imageId) return
+  try {
+    const undone = await annotationStore.undoLastAction(imageId)
+    if (undone) {
+      emit('undo-action', { imageId })
+    }
+  } catch (error) {
+    console.error('Error al deshacer anotación:', error)
+  }
 }
 
 const completeAnnotation = () => {
-  // Emitir evento para completar la anotación actual
-  emit('annotation-completed')
+  const imageId = currentImageId.value
+  if (!imageId || !hasImageAnnotations.value) return
+  emit('annotation-completed', { imageId })
 }
 
 // Eventos

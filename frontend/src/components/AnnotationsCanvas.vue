@@ -28,8 +28,8 @@
           <v-rect
             v-if="ann.type === 'bbox' || !ann.type"
             :config="{
-              x: ann.bbox[0],
-              y: ann.bbox[1],
+              x: toCanvasX(ann.bbox[0]),
+              y: toCanvasY(ann.bbox[1]),
               width: ann.bbox[2],
               height: ann.bbox[3],
               fill: getCategoryColor(ann.category || ann.category_id) + '40',
@@ -48,8 +48,8 @@
             <!-- Esquinas -->
             <v-circle
               :config="{
-                x: ann.bbox[0],
-                y: ann.bbox[1],
+                x: toCanvasX(ann.bbox[0]),
+                y: toCanvasY(ann.bbox[1]),
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -60,8 +60,8 @@
             />
             <v-circle
               :config="{
-                x: ann.bbox[0] + ann.bbox[2],
-                y: ann.bbox[1],
+                x: toCanvasX(ann.bbox[0]) + ann.bbox[2],
+                y: toCanvasY(ann.bbox[1]),
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -72,8 +72,8 @@
             />
             <v-circle
               :config="{
-                x: ann.bbox[0],
-                y: ann.bbox[1] + ann.bbox[3],
+                x: toCanvasX(ann.bbox[0]),
+                y: toCanvasY(ann.bbox[1]) + ann.bbox[3],
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -84,8 +84,8 @@
             />
             <v-circle
               :config="{
-                x: ann.bbox[0] + ann.bbox[2],
-                y: ann.bbox[1] + ann.bbox[3],
+                x: toCanvasX(ann.bbox[0]) + ann.bbox[2],
+                y: toCanvasY(ann.bbox[1]) + ann.bbox[3],
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -97,15 +97,15 @@
             <!-- Bordes - CON RESTRICCIONES DE MOVIMIENTO -->
             <v-circle
               :config="{
-                x: ann.bbox[0] + ann.bbox[2] / 2,
-                y: ann.bbox[1],
+                x: toCanvasX(ann.bbox[0]) + ann.bbox[2] / 2,
+                y: toCanvasY(ann.bbox[1]),
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
                 draggable: true,
                 dragBoundFunc: (pos) => ({
-                  x: ann.bbox[0] + ann.bbox[2] / 2, // X fijo
+                  x: toCanvasX(ann.bbox[0]) + ann.bbox[2] / 2, // X fijo
                   y: pos.y // Solo Y puede cambiar
                 })
               }"
@@ -113,15 +113,15 @@
             />
             <v-circle
               :config="{
-                x: ann.bbox[0] + ann.bbox[2] / 2,
-                y: ann.bbox[1] + ann.bbox[3],
+                x: toCanvasX(ann.bbox[0]) + ann.bbox[2] / 2,
+                y: toCanvasY(ann.bbox[1]) + ann.bbox[3],
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
                 draggable: true,
                 dragBoundFunc: (pos) => ({
-                  x: ann.bbox[0] + ann.bbox[2] / 2, // X fijo
+                  x: toCanvasX(ann.bbox[0]) + ann.bbox[2] / 2, // X fijo
                   y: pos.y // Solo Y puede cambiar
                 })
               }"
@@ -129,8 +129,8 @@
             />
             <v-circle
               :config="{
-                x: ann.bbox[0],
-                y: ann.bbox[1] + ann.bbox[3] / 2,
+                x: toCanvasX(ann.bbox[0]),
+                y: toCanvasY(ann.bbox[1]) + ann.bbox[3] / 2,
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -138,15 +138,15 @@
                 draggable: true,
                 dragBoundFunc: (pos) => ({
                   x: pos.x, // Solo X puede cambiar
-                  y: ann.bbox[1] + ann.bbox[3] / 2 // Y fijo
+                  y: toCanvasY(ann.bbox[1]) + ann.bbox[3] / 2 // Y fijo
                 })
               }"
               @dragmove="handleResizeDrag(ann, $event, 'w')"
             />
             <v-circle
               :config="{
-                x: ann.bbox[0] + ann.bbox[2],
-                y: ann.bbox[1] + ann.bbox[3] / 2,
+                x: toCanvasX(ann.bbox[0]) + ann.bbox[2],
+                y: toCanvasY(ann.bbox[1]) + ann.bbox[3] / 2,
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -154,7 +154,7 @@
                 draggable: true,
                 dragBoundFunc: (pos) => ({
                   x: pos.x, // Solo X puede cambiar
-                  y: ann.bbox[1] + ann.bbox[3] / 2 // Y fijo
+                  y: toCanvasY(ann.bbox[1]) + ann.bbox[3] / 2 // Y fijo
                 })
               }"
               @dragmove="handleResizeDrag(ann, $event, 'e')"
@@ -174,7 +174,7 @@
           >
             <v-line
               :config="{
-                points: ann.points.flat(),
+                points: ann.points.flatMap((point) => toCanvasPoint(point)),
                 fill: getCategoryColor(ann.category || ann.category_id) + '40',
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
@@ -189,8 +189,8 @@
                 v-for="(point, pointIndex) in ann.points"
                 :key="`control-${pointIndex}`"
                 :config="{
-                  x: point[0],
-                  y: point[1],
+                  x: toCanvasX(point[0]),
+                  y: toCanvasY(point[1]),
                   radius: 6,
                   fill: '#ffffff',
                   stroke: getCategoryColor(ann.category || ann.category_id),
@@ -337,6 +337,37 @@ const imageConfig = reactive({
   width: 0,
   height: 0
 })
+
+const imageOffset = computed(() => ({
+  x: imageConfig.x || 0,
+  y: imageConfig.y || 0
+}))
+
+const imageBounds = computed(() => ({
+  width: imageConfig.width || 0,
+  height: imageConfig.height || 0
+}))
+
+const toCanvasX = (value) => value + imageOffset.value.x
+const toCanvasY = (value) => value + imageOffset.value.y
+const toCanvasPoint = (point) => [toCanvasX(point[0]), toCanvasY(point[1])]
+
+const toImageX = (value) => value - imageOffset.value.x
+const toImageY = (value) => value - imageOffset.value.y
+
+function clampValue(value, min, max) {
+  if (Number.isNaN(value)) return min
+  if (max <= min) return min
+  return Math.min(Math.max(value, min), max)
+}
+
+function clampImageX(value) {
+  return clampValue(value, 0, imageBounds.value.width)
+}
+
+function clampImageY(value) {
+  return clampValue(value, 0, imageBounds.value.height)
+}
 
 // Canvas hidden para obtener ImageData
 const hiddenCanvas = ref(null)
@@ -778,12 +809,29 @@ function handlePolygonClick(pos) {
 async function completeBBox() {
   if (Math.abs(drawingRect.width) > 10 && Math.abs(drawingRect.height) > 10) {
     try {
+      const minX = Math.min(drawingRect.x, drawingRect.x + drawingRect.width)
+      const minY = Math.min(drawingRect.y, drawingRect.y + drawingRect.height)
+      const maxX = Math.max(drawingRect.x, drawingRect.x + drawingRect.width)
+      const maxY = Math.max(drawingRect.y, drawingRect.y + drawingRect.height)
+
+      const imageMinX = clampImageX(toImageX(minX))
+      const imageMinY = clampImageY(toImageY(minY))
+      const imageMaxX = clampImageX(toImageX(maxX))
+      const imageMaxY = clampImageY(toImageY(maxY))
+
+      const bboxWidth = Math.abs(imageMaxX - imageMinX)
+      const bboxHeight = Math.abs(imageMaxY - imageMinY)
+
+      if (bboxWidth <= 0 || bboxHeight <= 0) {
+        return
+      }
+
       await store.addAnnotation(props.imageId, {
         bbox: [
-          Math.min(drawingRect.x, drawingRect.x + drawingRect.width),
-          Math.min(drawingRect.y, drawingRect.y + drawingRect.height),
-          Math.abs(drawingRect.width),
-          Math.abs(drawingRect.height)
+          Math.min(imageMinX, imageMaxX),
+          Math.min(imageMinY, imageMaxY),
+          bboxWidth,
+          bboxHeight
         ],
         type: 'bbox'
       })
@@ -796,19 +844,31 @@ async function completeBBox() {
 
 async function completePolygon() {
   if (currentPath.value.length >= 3) {
-    // Calcular bounding box del polígono
-    const xs = currentPath.value.map(p => p[0])
-    const ys = currentPath.value.map(p => p[1])
+    const imagePoints = currentPath.value.map(([x, y]) => [
+      clampImageX(toImageX(x)),
+      clampImageY(toImageY(y))
+    ])
+
+    // Calcular bounding box del polígono en coordenadas de imagen
+    const xs = imagePoints.map(p => p[0])
+    const ys = imagePoints.map(p => p[1])
     const minX = Math.min(...xs)
     const minY = Math.min(...ys)
     const maxX = Math.max(...xs)
     const maxY = Math.max(...ys)
+    const bboxWidth = maxX - minX
+    const bboxHeight = maxY - minY
+
+    if (bboxWidth <= 0 || bboxHeight <= 0) {
+      currentPath.value = []
+      return
+    }
     
     try {
       await store.addAnnotation(props.imageId, {
-        bbox: [minX, minY, maxX - minX, maxY - minY],
+        bbox: [minX, minY, bboxWidth, bboxHeight],
         type: 'polygon',
-        points: currentPath.value
+        points: imagePoints
       })
       emit('annotation-saved')
     } catch (error) {
@@ -836,8 +896,9 @@ async function eraseAtPosition(pos) {
     if (ann.type === 'polygon' && ann.points) {
       // Para polígonos, verificar si algún punto está dentro del círculo del borrador
       for (const point of ann.points) {
+        const [canvasX, canvasY] = toCanvasPoint(point)
         const distance = Math.sqrt(
-          Math.pow(pos.x - point[0], 2) + Math.pow(pos.y - point[1], 2)
+          Math.pow(pos.x - canvasX, 2) + Math.pow(pos.y - canvasY, 2)
         )
         if (distance < eraserRadius.value) {
           shouldErase = true
@@ -846,10 +907,10 @@ async function eraseAtPosition(pos) {
       }
     } else if (ann.bbox) {
       // Para rectángulos, verificar intersección con el círculo del borrador
-      const rectLeft = ann.bbox[0]
-      const rectTop = ann.bbox[1]
-      const rectRight = ann.bbox[0] + ann.bbox[2]
-      const rectBottom = ann.bbox[1] + ann.bbox[3]
+      const rectLeft = toCanvasX(ann.bbox[0])
+      const rectTop = toCanvasY(ann.bbox[1])
+      const rectRight = rectLeft + ann.bbox[2]
+      const rectBottom = rectTop + ann.bbox[3]
       
       // Encontrar el punto más cercano del rectángulo al centro del borrador
       const closestX = Math.max(rectLeft, Math.min(pos.x, rectRight))
@@ -907,19 +968,7 @@ function handleAnnotationClick(annotation) {
 function handleAnnotationDrag(annotation, event) {
   if (props.activeTool !== 'edit') return
   
-  const node = event.target
-  const newPos = {
-    x: node.x(),
-    y: node.y()
-  }
-  
-  if (annotation.bbox) {
-    // Para rectángulos - actualizar bbox temporalmente
-    annotation.bbox[0] = newPos.x
-    annotation.bbox[1] = newPos.y
-  }
-  // Para polígonos agrupados, no necesitamos hacer nada aquí
-  // El v-group maneja automáticamente el movimiento visual
+  // No mutamos la anotación aquí; el movimiento visual lo maneja Konva
 }
 
 function handleAnnotationDragEnd(annotation, event) {
@@ -929,20 +978,67 @@ function handleAnnotationDragEnd(annotation, event) {
   const currentPos = { x: node.x(), y: node.y() }
   
   if (annotation.bbox) {
-    // Para rectángulos - calcular el delta y aplicar
-    const deltaX = currentPos.x - annotation.bbox[0]
-    const deltaY = currentPos.y - annotation.bbox[1]
-    
-    store.moveAnnotation(annotation._id, deltaX, deltaY)
-    node.position({ x: annotation.bbox[0], y: annotation.bbox[1] })
+    const width = annotation.bbox[2]
+    const height = annotation.bbox[3]
+    const tentativeX = clampImageX(toImageX(currentPos.x))
+    const tentativeY = clampImageY(toImageY(currentPos.y))
+
+    const maxX = Math.max(0, imageBounds.value.width - width)
+    const maxY = Math.max(0, imageBounds.value.height - height)
+
+    const clampedX = clampValue(tentativeX, 0, maxX)
+    const clampedY = clampValue(tentativeY, 0, maxY)
+
+    if (clampedX !== annotation.bbox[0] || clampedY !== annotation.bbox[1]) {
+      const newBbox = [clampedX, clampedY, width, height]
+      annotation.bbox = newBbox
+      store.updateAnnotation(annotation._id, { bbox: newBbox })
+    }
+
+    node.position({ x: toCanvasX(clampedX), y: toCanvasY(clampedY) })
   } else if (annotation.points && annotation.type === 'polygon') {
-    // Para polígonos - el grupo se ha movido, usar las coordenadas del grupo como delta
-    const deltaX = currentPos.x
-    const deltaY = currentPos.y
-    
-    // Actualizar las coordenadas del polígono en el store
-    store.moveAnnotation(annotation._id, deltaX, deltaY)
-    
+    const originalPoints = annotation.points.map(point => [...point])
+    const xs = originalPoints.map(point => point[0])
+    const ys = originalPoints.map(point => point[1])
+
+    if (Math.abs(currentPos.x) < 0.01 && Math.abs(currentPos.y) < 0.01) {
+      node.position({ x: 0, y: 0 })
+      return
+    }
+
+    const rawMinDeltaX = -Math.min(...xs)
+    const rawMaxDeltaX = imageBounds.value.width - Math.max(...xs)
+    const rawMinDeltaY = -Math.min(...ys)
+    const rawMaxDeltaY = imageBounds.value.height - Math.max(...ys)
+
+    const minAllowedDeltaX = Math.min(rawMinDeltaX, rawMaxDeltaX)
+    const maxAllowedDeltaX = Math.max(rawMinDeltaX, rawMaxDeltaX)
+    const minAllowedDeltaY = Math.min(rawMinDeltaY, rawMaxDeltaY)
+    const maxAllowedDeltaY = Math.max(rawMinDeltaY, rawMaxDeltaY)
+
+    const clampedDeltaX = clampValue(currentPos.x, minAllowedDeltaX, maxAllowedDeltaX)
+    const clampedDeltaY = clampValue(currentPos.y, minAllowedDeltaY, maxAllowedDeltaY)
+
+    if (clampedDeltaX !== 0 || clampedDeltaY !== 0) {
+      const newPoints = originalPoints.map(point => [
+        point[0] + clampedDeltaX,
+        point[1] + clampedDeltaY
+      ])
+
+      const newXs = newPoints.map(point => point[0])
+      const newYs = newPoints.map(point => point[1])
+      const minX = Math.min(...newXs)
+      const minY = Math.min(...newYs)
+      const maxX = Math.max(...newXs)
+      const maxY = Math.max(...newYs)
+
+      annotation.bbox = [minX, minY, maxX - minX, maxY - minY]
+      store.updateAnnotation(annotation._id, {
+        points: newPoints,
+        bbox: [minX, minY, maxX - minX, maxY - minY]
+      })
+    }
+
     // Resetear la posición del grupo a (0, 0)
     node.position({ x: 0, y: 0 })
   }
@@ -952,87 +1048,157 @@ function handleResizeDrag(annotation, event, handle) {
   if (props.activeTool !== 'edit') return
   
   const node = event.target
-  const newPos = {
+  const canvasPos = {
     x: node.x(),
     y: node.y()
   }
+  const imagePos = {
+    x: clampImageX(toImageX(canvasPos.x)),
+    y: clampImageY(toImageY(canvasPos.y))
+  }
   
   const minSize = 10
-  let x = annotation.bbox[0]
-  let y = annotation.bbox[1]
-  let width = annotation.bbox[2]
-  let height = annotation.bbox[3]
+  const [origX, origY, origWidth, origHeight] = annotation.bbox
+  const origRight = origX + origWidth
+  const origBottom = origY + origHeight
+  let x = origX
+  let y = origY
+  let width = origWidth
+  let height = origHeight
   
   // Calcular nuevas dimensiones según el manejador
   switch (handle) {
     case 'nw': // Noroeste (superior izquierda)
-      const deltaX_nw = newPos.x - x
-      const deltaY_nw = newPos.y - y
-      x = newPos.x
-      y = newPos.y
-      width = Math.max(width - deltaX_nw, minSize)
-      height = Math.max(height - deltaY_nw, minSize)
+      x = clampValue(imagePos.x, 0, origRight - minSize)
+      y = clampValue(imagePos.y, 0, origBottom - minSize)
+      width = Math.max(origRight - x, minSize)
+      height = Math.max(origBottom - y, minSize)
       break
       
     case 'ne': // Noreste (superior derecha)
-      const deltaY_ne = newPos.y - y
-      y = newPos.y
-      width = Math.max(newPos.x - x, minSize)
-      height = Math.max(height - deltaY_ne, minSize)
+      y = clampValue(imagePos.y, 0, origBottom - minSize)
+      const newRightNE = clampValue(imagePos.x, origX + minSize, imageBounds.value.width)
+      width = Math.max(newRightNE - origX, minSize)
+      height = Math.max(origBottom - y, minSize)
       break
       
     case 'sw': // Suroeste (inferior izquierda)
-      const deltaX_sw = newPos.x - x
-      x = newPos.x
-      width = Math.max(width - deltaX_sw, minSize)
-      height = Math.max(newPos.y - y, minSize)
+      x = clampValue(imagePos.x, 0, origRight - minSize)
+      const newBottomSW = clampValue(imagePos.y, origY + minSize, imageBounds.value.height)
+      width = Math.max(origRight - x, minSize)
+      height = Math.max(newBottomSW - origY, minSize)
       break
       
     case 'se': // Sureste (inferior derecha)
-      width = Math.max(newPos.x - x, minSize)
-      height = Math.max(newPos.y - y, minSize)
+      const newRightSE = clampValue(imagePos.x, origX + minSize, imageBounds.value.width)
+      const newBottomSE = clampValue(imagePos.y, origY + minSize, imageBounds.value.height)
+      width = Math.max(newRightSE - origX, minSize)
+      height = Math.max(newBottomSE - origY, minSize)
       break
       
     case 'n': // Norte (arriba)
-      const deltaY_n = newPos.y - y
-      y = newPos.y
-      height = Math.max(height - deltaY_n, minSize)
+      y = clampValue(imagePos.y, 0, origBottom - minSize)
+      height = Math.max(origBottom - y, minSize)
       break
       
     case 's': // Sur (abajo)
-      height = Math.max(newPos.y - y, minSize)
+      const newBottom = clampValue(imagePos.y, origY + minSize, imageBounds.value.height)
+      height = Math.max(newBottom - origY, minSize)
       break
       
     case 'w': // Oeste (izquierda)
-      const deltaX_w = newPos.x - x
-      x = newPos.x
-      width = Math.max(width - deltaX_w, minSize)
+      x = clampValue(imagePos.x, 0, origRight - minSize)
+      width = Math.max(origRight - x, minSize)
       break
       
     case 'e': // Este (derecha)
-      width = Math.max(newPos.x - x, minSize)
+      const newRight = clampValue(imagePos.x, origX + minSize, imageBounds.value.width)
+      width = Math.max(newRight - origX, minSize)
       break
   }
   
+  width = Math.min(width, imageBounds.value.width - x)
+  height = Math.min(height, imageBounds.value.height - y)
+  width = Math.max(width, minSize)
+  height = Math.max(height, minSize)
+  
   // Actualizar la anotación con las nuevas dimensiones
   const updatedBbox = [x, y, width, height]
-  store.updateAnnotation(annotation._id, { bbox: updatedBbox })
+  const hasChanged =
+    x !== origX ||
+    y !== origY ||
+    width !== origWidth ||
+    height !== origHeight
+
+  annotation.bbox = updatedBbox
+
+  switch (handle) {
+    case 'nw':
+      node.position({ x: toCanvasX(x), y: toCanvasY(y) })
+      break
+    case 'ne':
+      node.position({ x: toCanvasX(x) + width, y: toCanvasY(y) })
+      break
+    case 'sw':
+      node.position({ x: toCanvasX(x), y: toCanvasY(y) + height })
+      break
+    case 'se':
+      node.position({ x: toCanvasX(x) + width, y: toCanvasY(y) + height })
+      break
+    case 'n':
+      node.position({ x: toCanvasX(x) + width / 2, y: toCanvasY(y) })
+      break
+    case 's':
+      node.position({ x: toCanvasX(x) + width / 2, y: toCanvasY(y) + height })
+      break
+    case 'w':
+      node.position({ x: toCanvasX(x), y: toCanvasY(y) + height / 2 })
+      break
+    case 'e':
+      node.position({ x: toCanvasX(x) + width, y: toCanvasY(y) + height / 2 })
+      break
+  }
+
+  if (hasChanged) {
+    store.updateAnnotation(annotation._id, { bbox: updatedBbox })
+  }
 }
 
 function handlePolygonPointDrag(annotation, pointIndex, event) {
   if (props.activeTool !== 'edit') return
   
   const node = event.target
-  const newPos = {
+  const canvasPos = {
     x: node.x(),
     y: node.y()
   }
-  
-  // Actualizar el punto específico del polígono
-  const newPoints = [...annotation.points]
-  newPoints[pointIndex] = [newPos.x, newPos.y]
-  
-  store.updateAnnotation(annotation._id, { points: newPoints })
+  const clampedX = clampImageX(toImageX(canvasPos.x))
+  const clampedY = clampImageY(toImageY(canvasPos.y))
+
+  const newPoints = annotation.points.map((point, idx) =>
+    idx === pointIndex ? [clampedX, clampedY] : [...point]
+  )
+
+  const currentPoint = annotation.points[pointIndex]
+  const hasChanged = currentPoint[0] !== clampedX || currentPoint[1] !== clampedY
+  annotation.points = newPoints
+
+  node.position({ x: toCanvasX(clampedX), y: toCanvasY(clampedY) })
+
+  if (hasChanged) {
+    const xs = newPoints.map(point => point[0])
+    const ys = newPoints.map(point => point[1])
+    const minX = Math.min(...xs)
+    const minY = Math.min(...ys)
+    const maxX = Math.max(...xs)
+    const maxY = Math.max(...ys)
+
+    annotation.bbox = [minX, minY, maxX - minX, maxY - minY]
+    store.updateAnnotation(annotation._id, {
+      points: newPoints,
+      bbox: [minX, minY, maxX - minX, maxY - minY]
+    })
+  }
 }
 </script>
 

@@ -42,7 +42,10 @@ export const useAnnotationStore = defineStore('annotation', {
       eraser: {
         radius: 20
       }
-    }
+    },
+
+    // Historial de acciones por imagen (máximo 3 pasos)
+    undoStacks: {}
   }),
   
   getters: {
@@ -136,6 +139,12 @@ export const useAnnotationStore = defineStore('annotation', {
         
         return true
       })
+    },
+
+    hasUndoForImage: (state) => (imageId) => {
+      if (!imageId) return false
+      const stack = state.undoStacks?.[imageId]
+      return Array.isArray(stack) && stack.length > 0
     }
   },
   
@@ -149,6 +158,75 @@ export const useAnnotationStore = defineStore('annotation', {
     
     clearError() {
       this.error = null
+    },
+
+    // ==================== HISTORIAL DE ACCIONES ====================
+    ensureUndoStack(imageId) {
+      if (!imageId) return
+      if (!this.undoStacks[imageId]) {
+        this.undoStacks[imageId] = []
+      }
+    },
+
+    cloneAnnotations(annotations) {
+      return annotations.map(ann => JSON.parse(JSON.stringify(ann)))
+    },
+
+    pushUndoEntry(imageId, entry) {
+      if (!imageId || !entry) return
+      if (!entry.annotations || entry.annotations.length === 0) return
+      this.ensureUndoStack(imageId)
+      const stack = this.undoStacks[imageId]
+      stack.push({ ...entry, annotations: this.cloneAnnotations(entry.annotations) })
+      if (stack.length > 3) {
+        stack.shift()
+      }
+    },
+
+    clearUndoStack(imageId) {
+      if (!imageId) return
+      if (this.undoStacks[imageId]) {
+        this.undoStacks[imageId] = []
+      }
+    },
+
+    async undoLastAction(imageId) {
+      if (!imageId) return false
+      const stack = this.undoStacks[imageId]
+      if (!stack || stack.length === 0) {
+        return false
+      }
+
+      const lastEntry = stack.pop()
+
+      try {
+        if (lastEntry.type === 'add') {
+          for (const annotation of lastEntry.annotations) {
+            const annotationId = annotation._id || annotation.id
+            if (!annotationId) continue
+            const response = await fetch(`${API_BASE_URL}/annotations/${annotationId}`, {
+              method: 'DELETE'
+            })
+            if (!response.ok) {
+              throw new Error(`Error ${response.status}: ${response.statusText}`)
+            }
+            this.annotations = this.annotations.filter(ann => (ann._id || ann.id) !== annotationId)
+          }
+        } else if (lastEntry.type === 'clear') {
+          // Limpiar anotaciones actuales sin registrar nuevo undo
+          await this.clearAnnotationsForImage(imageId, { skipUndo: true })
+          for (const annotation of lastEntry.annotations) {
+            const { _id, id, image_id, created_at, updated_at, ...rest } = annotation
+            await this.addAnnotation(imageId, rest, { skipUndo: true })
+          }
+        }
+        return true
+      } catch (error) {
+        // Reinsertar la entrada para permitir reintento
+        stack.push(lastEntry)
+        this.setError(`Error al deshacer acción: ${error.message}`)
+        return false
+      }
     },
     
     // ==================== APIS DE IMÁGENES ====================
@@ -247,16 +325,27 @@ export const useAnnotationStore = defineStore('annotation', {
     
     // ==================== APIS DE ANOTACIONES ====================
     
-    async addAnnotation(imageId, annotationData) {
+    async addAnnotation(imageId, annotationData, options = {}) {
       this.loading = true
       this.clearError()
+      const skipUndo = options.skipUndo || false
       
       try {
         const payload = {
           image_id: imageId,
-          category: this.selectedCategory,
-          category_id: this.selectedCategory,
           ...annotationData
+        }
+
+        if (!payload.category && !payload.category_id && this.selectedCategory) {
+          payload.category = this.selectedCategory
+          payload.category_id = this.selectedCategory
+        } else {
+          if (payload.category && !payload.category_id) {
+            payload.category_id = payload.category
+          }
+          if (payload.category_id && !payload.category) {
+            payload.category = payload.category_id
+          }
         }
         
         const response = await fetch(`${API_BASE_URL}/annotations`, {
@@ -275,6 +364,13 @@ export const useAnnotationStore = defineStore('annotation', {
         
         // Añadir anotación al estado local
         this.annotations.push(data.annotation)
+
+        if (!skipUndo) {
+          this.pushUndoEntry(imageId, {
+            type: 'add',
+            annotations: [data.annotation]
+          })
+        }
         
         return data.annotation
         
@@ -472,9 +568,11 @@ export const useAnnotationStore = defineStore('annotation', {
       }
     },
     
-    async clearAnnotationsForImage(imageId) {
+    async clearAnnotationsForImage(imageId, options = {}) {
       this.loading = true
       this.clearError()
+      const skipUndo = options.skipUndo || false
+      const existingAnnotations = this.annotations.filter(ann => ann.image_id === imageId)
       
       try {
         const response = await fetch(`${API_BASE_URL}/annotations/bulk`, {
@@ -491,6 +589,13 @@ export const useAnnotationStore = defineStore('annotation', {
         
         // Remover anotaciones del estado local
         this.annotations = this.annotations.filter(ann => ann.image_id !== imageId)
+
+        if (!skipUndo && existingAnnotations.length > 0) {
+          this.pushUndoEntry(imageId, {
+            type: 'clear',
+            annotations: existingAnnotations
+          })
+        }
         
         return true
         
@@ -843,12 +948,40 @@ export const useAnnotationStore = defineStore('annotation', {
       // Cargar anotaciones de la imagen actual
       if (image && (image.id || image._id)) {
         const imageId = image.id || image._id
+        this.ensureUndoStack(imageId)
         try {
           await this.loadAnnotations(imageId)
         } catch (error) {
           console.error('Error al cargar anotaciones para la imagen:', error)
         }
       }
+    },
+
+    markImageAsCompleted(imageId) {
+      if (!imageId) return
+      const image = this.images.find(img => (img._id || img.id) === imageId)
+      if (image) {
+        image.completed = true
+        image.completedAt = new Date().toISOString()
+      }
+      // Limpiar undo stack cuando la imagen se marca como completada
+      this.clearUndoStack(imageId)
+    },
+
+    getNextIncompleteImage(imageId) {
+      if (!this.images.length) return null
+      const normalizedId = imageId
+      const total = this.images.length
+      const currentIndex = this.images.findIndex(img => (img._id || img.id) === normalizedId)
+      const startIndex = currentIndex >= 0 ? currentIndex : -1
+      for (let offset = 1; offset <= total; offset += 1) {
+        const index = (startIndex + offset) % total
+        const candidate = this.images[index]
+        if (!candidate?.completed) {
+          return candidate
+        }
+      }
+      return null
     },
     
     setCurrentDataset(dataset) {
@@ -859,6 +992,7 @@ export const useAnnotationStore = defineStore('annotation', {
       this.categories = []
       this.currentImage = null
       this.selectedCategory = null
+      this.undoStacks = {}
     },
     
     clearDatasetContext() {
@@ -868,6 +1002,7 @@ export const useAnnotationStore = defineStore('annotation', {
       this.categories = []
       this.currentImage = null
       this.selectedCategory = null
+      this.undoStacks = {}
     },
     
     // ==================== INICIALIZACIÓN ====================
