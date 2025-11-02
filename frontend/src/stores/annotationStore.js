@@ -615,9 +615,14 @@ export const useAnnotationStore = defineStore('annotation', {
       
       try {
         const targetDatasetId = datasetId || this.currentDataset?._id
-        const url = targetDatasetId ? 
-          `${API_BASE_URL}/categories?dataset_id=${targetDatasetId}` : 
-          `${API_BASE_URL}/categories`
+        
+        // Si hay dataset_id, filtrar por ese dataset
+        // Si no hay, cargar todas las categorías (vista global)
+        let url = `${API_BASE_URL}/categories`
+        if (targetDatasetId) {
+          url += `?dataset_id=${targetDatasetId}`
+        }
+        
         const response = await fetch(url)
         
         if (!response.ok) {
@@ -647,8 +652,15 @@ export const useAnnotationStore = defineStore('annotation', {
       this.clearError()
       
       try {
+        const targetDatasetId = datasetId || this.currentDataset?._id
+        
+        // dataset_id es obligatorio
+        if (!targetDatasetId) {
+          throw new Error('dataset_id es requerido para crear una categoría')
+        }
+        
         const payload = {
-          dataset_id: datasetId || this.currentDataset?._id,
+          dataset_id: targetDatasetId,
           ...categoryData
         }
         
@@ -668,7 +680,7 @@ export const useAnnotationStore = defineStore('annotation', {
         const data = await response.json()
         
         // Recargar categorías para mantener consistencia
-        await this.loadCategories()
+        await this.loadCategories(targetDatasetId)
         
         return data.category
         

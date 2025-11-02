@@ -103,6 +103,30 @@
         <div class="modal-body">
           <form @submit.prevent="createCategory">
             <div class="form-group">
+              <label for="categoryDataset">
+                <i class="fas fa-database"></i>
+                Dataset *
+              </label>
+              <select
+                id="categoryDataset"
+                v-model="newCategory.dataset_id"
+                class="form-input"
+                :class="{ 'error': errors.dataset_id }"
+                required
+              >
+                <option value="">Selecciona un dataset</option>
+                <option 
+                  v-for="dataset in datasets" 
+                  :key="dataset._id" 
+                  :value="dataset._id"
+                >
+                  {{ dataset.name }}
+                </option>
+              </select>
+              <span v-if="errors.dataset_id" class="error-message">{{ errors.dataset_id }}</span>
+            </div>
+
+            <div class="form-group">
               <label for="categoryName">
                 <i class="fas fa-tag"></i>
                 Nombre de la categoría *
@@ -237,6 +261,7 @@ const store = useAnnotationStore()
 const categories = computed(() => store.categories)
 const annotations = computed(() => store.annotations)
 const loading = computed(() => store.loading)
+const datasets = ref([])
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const creating = ref(false)
@@ -245,7 +270,8 @@ const errors = ref({})
 
 const newCategory = ref({
   name: '',
-  color: '#ff0000'
+  color: '#ff0000',
+  dataset_id: ''
 })
 
 const editingCategory = ref({
@@ -255,6 +281,18 @@ const editingCategory = ref({
 })
 
 // Métodos
+async function loadDatasets() {
+  try {
+    const response = await fetch('http://localhost:5000/api/datasets')
+    if (!response.ok) throw new Error('Error al cargar datasets')
+    const data = await response.json()
+    datasets.value = data.datasets || []
+  } catch (error) {
+    console.error('Error al cargar datasets:', error)
+    alert('Error al cargar datasets: ' + error.message)
+  }
+}
+
 async function loadCategories() {
   try {
     await store.loadCategories()
@@ -271,9 +309,10 @@ async function createCategory() {
   errors.value = {}
   
   try {
-    await store.addCategory(newCategory.value)
+    await store.addCategory(newCategory.value, newCategory.value.dataset_id)
     alert('Categoría creada correctamente')
     closeCreateModal()
+    await loadCategories()
   } catch (error) {
     console.error('Error al crear categoría:', error)
     alert('Error al crear categoría: ' + error.message)
@@ -357,6 +396,12 @@ function validateForm(category) {
     return false
   }
   
+  // Validar dataset_id solo para nuevas categorías
+  if (showCreateModal.value && (!category.dataset_id || category.dataset_id.trim() === '')) {
+    errors.value.dataset_id = 'Debes seleccionar un dataset'
+    return false
+  }
+  
   return true
 }
 
@@ -384,7 +429,8 @@ function closeCreateModal() {
   showCreateModal.value = false
   newCategory.value = {
     name: '',
-    color: '#ff0000'
+    color: '#ff0000',
+    dataset_id: ''
   }
   errors.value = {}
 }
@@ -401,6 +447,8 @@ function closeEditModal() {
 
 // Lifecycle
 onMounted(() => {
+  // Cargar datasets primero
+  loadDatasets()
   // Cargar categorías si no están ya cargadas
   if (categories.value.length === 0) {
     loadCategories()

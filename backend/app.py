@@ -535,12 +535,17 @@ def delete_annotations_bulk():
 
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
-    """Obtener todas las categorías"""
+    """Obtener todas las categorías de un dataset específico o de todos los datasets"""
     try:
         db = get_db()
-        project_id = request.args.get('project_id', 'default')
+        dataset_id = request.args.get('dataset_id')
         
-        categories = list(db.categories.find({'project_id': project_id}))
+        # Si se proporciona dataset_id, filtrar por ese dataset
+        # Si no, devolver todas las categorías (vista global)
+        if dataset_id:
+            categories = list(db.categories.find({'dataset_id': dataset_id}))
+        else:
+            categories = list(db.categories.find())
         
         # Contar anotaciones por categoría y estandarizar formato
         for category in categories:
@@ -566,20 +571,28 @@ def get_categories():
 
 @app.route('/api/categories', methods=['POST'])
 def create_category():
-    """Crear una nueva categoría"""
+    """Crear una nueva categoría asociada a un dataset específico"""
     try:
         data = request.get_json()
         
         if not data or 'name' not in data:
             return jsonify({'error': 'name es requerido'}), 400
         
+        if 'dataset_id' not in data or not data['dataset_id']:
+            return jsonify({'error': 'dataset_id es requerido. Debes especificar a qué dataset pertenece esta categoría.'}), 400
+        
         db = get_db()
+        
+        # Verificar que el dataset existe
+        dataset = db.datasets.find_one({'_id': ObjectId(data['dataset_id'])})
+        if not dataset:
+            return jsonify({'error': 'El dataset especificado no existe'}), 404
         
         # Crear documento de categoría
         category_doc = {
             'name': data['name'],
             'color': data.get('color', '#00ff00'),
-            'project_id': data.get('project_id', 'default'),
+            'dataset_id': data['dataset_id'],
             'created_date': datetime.utcnow()
         }
         
@@ -788,10 +801,14 @@ def get_categories_data():
     """Obtener estadísticas de categorías con conteo de anotaciones"""
     try:
         db = get_db()
-        project_id = request.args.get('project_id', 'default')
+        dataset_id = request.args.get('dataset_id')
         
-        # Obtener todas las categorías
-        categories = list(db.categories.find({'project_id': project_id}))
+        # Si no se proporciona dataset_id, devolver error
+        if not dataset_id:
+            return jsonify({'error': 'dataset_id es requerido'}), 400
+        
+        # Obtener todas las categorías del dataset
+        categories = list(db.categories.find({'dataset_id': dataset_id}))
         
         # Contar anotaciones por categoría y estandarizar formato
         for category in categories:
@@ -1626,17 +1643,17 @@ def process_coco_format(db, annotations_file, images_file, dataset_id):
             if not color.startswith('#') or len(color) != 7:
                 color = generate_random_color()
 
-            # Buscar por nombre en la gestión de categorías del proyecto default
-            existing = db.categories.find_one({'name': cat_name, 'project_id': 'default'})
+            # Buscar por nombre en las categorías del dataset actual
+            existing = db.categories.find_one({'name': cat_name, 'dataset_id': dataset_id})
             if existing:
                 category_map[cat['id']] = str(existing['_id'])
                 print(f"✅ Categoría existente: {cat_name}")
             else:
-                # Crear nueva categoría con color aleatorio si no tiene
+                # Crear nueva categoría en el dataset actual
                 new_cat = {
                     'name': cat_name,
                     'color': color,
-                    'project_id': 'default',
+                    'dataset_id': dataset_id,
                     'created_date': datetime.utcnow(),
                     'annotation_count': 0
                 }
@@ -1976,12 +1993,8 @@ def export_annotations(dataset_id):
         image_ids = [str(img['_id']) for img in images]
         annotations = list(db.annotations.find({'image_id': {'$in': image_ids}}))
         
-        # Obtener categorías
-        categories = list(db.categories.find({'project_id': dataset.get('project_id', 'default')}))
-        
-        # Si no hay categorías específicas del proyecto, obtener todas
-        if not categories:
-            categories = list(db.categories.find())
+        # Obtener categorías del dataset
+        categories = list(db.categories.find({'dataset_id': dataset_id}))
         
         print(f"Exportando: {len(images)} imágenes, {len(annotations)} anotaciones, {len(categories)} categorías")
         
@@ -2032,10 +2045,8 @@ def get_export_statistics(dataset_id):
         filtered_image_ids = [str(img['_id']) for img in filtered_images]
         annotations_count = db.annotations.count_documents({'image_id': {'$in': filtered_image_ids}})
         
-        # Obtener categorías
-        categories = list(db.categories.find({'project_id': dataset.get('project_id', 'default')}))
-        if not categories:
-            categories = list(db.categories.find())
+        # Obtener categorías del dataset
+        categories = list(db.categories.find({'dataset_id': dataset_id}))
         
         return jsonify({
             'images': len(filtered_images),
