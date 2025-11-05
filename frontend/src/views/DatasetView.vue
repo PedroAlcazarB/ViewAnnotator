@@ -41,6 +41,12 @@
           <div class="stat-item">
             <strong>Annotations:</strong> {{ totalAnnotations }}
           </div>
+          <div class="stat-item">
+            <strong>Con anotaciones:</strong> {{ imagesWithAnnotationsCount }}
+          </div>
+          <div class="stat-item">
+            <strong>Sin anotaciones:</strong> {{ imagesWithoutAnnotationsCount }}
+          </div>
         </div>
       </div>
 
@@ -59,28 +65,53 @@
           </button>
         </div>
         
-        <div v-else class="image-grid">
-          <div 
-            v-for="image in images" 
-            :key="image._id" 
-            class="image-card"
-            @click="openAnnotator(image)"
-          >
-            <img 
-              :src="`http://localhost:5000/api/images/${image._id}/data`" 
-              :alt="image.filename"
-              @error="handleImageError"
-            />
-            <div class="image-info">
-              <p class="filename">{{ image.filename }}</p>
-              <p class="annotations-count">
-                {{ getAnnotationCount(image) }} annotations
-              </p>
-            </div>
-            <div class="image-actions">
-              <button @click.stop="deleteImage(image)" class="btn-icon delete">
-                <i class="fas fa-trash"></i>
-              </button>
+        <div v-else>
+          <!-- Barra de filtros -->
+          <div class="filter-bar">
+            <label for="image-filter">Filtrar:</label>
+            <select id="image-filter" v-model="filterStatus" class="filter-select">
+              <option value="all">Todas las imágenes</option>
+              <option value="with-annotations">Con anotaciones</option>
+              <option value="no-annotations">Sin anotaciones</option>
+            </select>
+            <span v-if="filterStatus !== 'all'" class="filter-results">
+              {{ filteredImages.length }} resultado(s)
+            </span>
+          </div>
+
+          <!-- Mensaje cuando no hay resultados del filtro -->
+          <div v-if="filteredImages.length === 0" class="no-images">
+            <i class="fas fa-filter"></i>
+            <p>No hay imágenes que coincidan con el filtro seleccionado</p>
+            <button @click="filterStatus = 'all'" class="btn btn-secondary">
+              Limpiar filtro
+            </button>
+          </div>
+
+          <!-- Grid de imágenes filtradas -->
+          <div v-else class="image-grid">
+            <div 
+              v-for="image in filteredImages" 
+              :key="image._id" 
+              class="image-card"
+              @click="openAnnotator(image)"
+            >
+              <img 
+                :src="`http://localhost:5000/api/images/${image._id}/data`" 
+                :alt="image.filename"
+                @error="handleImageError"
+              />
+              <div class="image-info">
+                <p class="filename">{{ image.filename }}</p>
+                <p class="annotations-count">
+                  {{ getAnnotationCount(image) }} annotations
+                </p>
+              </div>
+              <div class="image-actions">
+                <button @click.stop="deleteImage(image)" class="btn-icon delete">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -206,7 +237,8 @@ export default {
       showUploadModal: false,
       showImportModal: false,
       showExportModal: false,
-      selectedImage: null
+      selectedImage: null,
+      filterStatus: 'all'
     }
   },
   computed: {
@@ -221,6 +253,21 @@ export default {
       return this.images.reduce((total, image) => {
         return total + (image.annotation_count || 0)
       }, 0)
+    },
+    filteredImages() {
+      if (this.filterStatus === 'with-annotations') {
+        return this.images.filter(image => this.getAnnotationCount(image) > 0)
+      }
+      if (this.filterStatus === 'no-annotations') {
+        return this.images.filter(image => this.getAnnotationCount(image) === 0)
+      }
+      return this.images
+    },
+    imagesWithAnnotationsCount() {
+      return this.images.filter(image => this.getAnnotationCount(image) > 0).length
+    },
+    imagesWithoutAnnotationsCount() {
+      return this.images.filter(image => this.getAnnotationCount(image) === 0).length
     }
   },
   mounted() {
@@ -517,6 +564,22 @@ export default {
   color: white;
 }
 
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #5a6268;
+}
+
 .content-wrapper {
   display: flex;
   flex: 1;
@@ -561,6 +624,48 @@ export default {
   flex: 1;
   padding: 20px;
   overflow-y: auto;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f1f3f5;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  color: #495057;
+}
+
+.filter-bar label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.filter-select {
+  flex: 0 0 230px;
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background: white;
+  color: #495057;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+.filter-results {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-weight: 500;
 }
 
 .loading {
