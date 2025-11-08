@@ -350,17 +350,29 @@ export const useAnnotationStore = defineStore('annotation', {
         
         const data = await response.json()
         
-        // Añadir anotación al estado local
-        this.annotations.push(data.annotation)
-
-        if (!skipUndo) {
-          this.pushUndoEntry(imageId, {
-            type: 'add',
-            annotations: [data.annotation]
-          })
+        // Verificar si es un duplicado
+        if (data.is_duplicate) {
+          // Mostrar mensaje de duplicado pero no añadir a las anotaciones
+          console.log('Anotación duplicada detectada:', data.message)
+          return {
+            ...data,
+            duplicated: true
+          }
         }
         
-        return data.annotation
+        // Añadir anotación al estado local solo si no es duplicado
+        if (data.annotation) {
+          this.annotations.push(data.annotation)
+
+          if (!skipUndo) {
+            this.pushUndoEntry(imageId, {
+              type: 'add',
+              annotations: [data.annotation]
+            })
+          }
+        }
+        
+        return data.annotation || data
         
       } catch (error) {
         this.setError(`Error al crear anotación: ${error.message}`)

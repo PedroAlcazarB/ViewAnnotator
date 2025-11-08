@@ -355,6 +355,163 @@ def delete_image(image_id):
 def serve_image(filename):
     return send_from_directory(IMAGE_FOLDER, filename)
 
+# ==================== FUNCIONES AUXILIARES PARA ANOTACIONES ====================
+
+def check_annotation_duplicate(db, image_id, category_id, category_name, bbox, tolerance=5):
+    """
+    Verificar si ya existe una anotación similar en la misma imagen
+    
+    Args:
+        db: Conexión a la base de datos
+        image_id: ID de la imagen
+        category_id: ID de la categoría
+        category_name: Nombre de la categoría  
+        bbox: Bounding box [x, y, width, height]
+        tolerance: Tolerancia en píxeles para considerar coordenadas similares
+    
+    Returns:
+        dict: {'is_duplicate': bool, 'existing_annotation': dict or None}
+    """
+    try:
+        if not bbox or len(bbox) < 4:
+            return {'is_duplicate': False, 'existing_annotation': None}
+        
+        x, y, width, height = bbox
+        
+        # Buscar anotaciones existentes en la misma imagen con la misma categoría
+        query = {
+            'image_id': image_id,
+            '$or': [
+                {'category_id': category_id},
+                {'category': category_name}
+            ]
+        }
+        
+        existing_annotations = db.annotations.find(query)
+        
+        for annotation in existing_annotations:
+            existing_bbox = annotation.get('bbox')
+            if not existing_bbox or len(existing_bbox) < 4:
+                continue
+                
+            ex_x, ex_y, ex_width, ex_height = existing_bbox
+            
+            # Verificar si las coordenadas están dentro de la tolerancia
+            x_match = abs(x - ex_x) <= tolerance
+            y_match = abs(y - ex_y) <= tolerance
+            width_match = abs(width - ex_width) <= tolerance
+            height_match = abs(height - ex_height) <= tolerance
+            
+            # Si todas las coordenadas coinciden dentro de la tolerancia, es un duplicado
+            if x_match and y_match and width_match and height_match:
+                return {
+                    'is_duplicate': True, 
+                    'existing_annotation': serialize_doc(annotation)
+                }
+        
+        return {'is_duplicate': False, 'existing_annotation': None}
+        
+    except Exception as e:
+        print(f"Error al verificar duplicados: {e}")
+        return {'is_duplicate': False, 'existing_annotation': None}
+
+def calculate_bbox_overlap(bbox1, bbox2):
+    """
+    Calcular el IoU (Intersection over Union) entre dos bounding boxes
+    
+    Args:
+        bbox1, bbox2: [x, y, width, height]
+    
+    Returns:
+        float: Valor IoU entre 0 y 1
+    """
+    try:
+        x1, y1, w1, h1 = bbox1
+        x2, y2, w2, h2 = bbox2
+        
+        # Convertir a coordenadas (x1, y1, x2, y2)
+        box1 = [x1, y1, x1 + w1, y1 + h1]
+        box2 = [x2, y2, x2 + w2, y2 + h2]
+        
+        # Calcular intersección
+        x_left = max(box1[0], box2[0])
+        y_top = max(box1[1], box2[1])
+        x_right = min(box1[2], box2[2])
+        y_bottom = min(box1[3], box2[3])
+        
+        if x_right < x_left or y_bottom < y_top:
+            return 0.0
+            
+        intersection_area = (x_right - x_left) * (y_bottom - y_top)
+        
+        # Calcular áreas de las cajas
+        box1_area = w1 * h1
+        box2_area = w2 * h2
+        
+        # Calcular unión
+        union_area = box1_area + box2_area - intersection_area
+        
+        if union_area == 0:
+            return 0.0
+            
+        return intersection_area / union_area
+        
+    except Exception as e:
+        print(f"Error al calcular IoU: {e}")
+        return 0.0
+
+def check_annotation_duplicate_advanced(db, image_id, category_id, category_name, bbox, iou_threshold=0.7):
+    """
+    Verificar duplicados usando IoU (Intersection over Union) más preciso
+    
+    Args:
+        db: Conexión a la base de datos
+        image_id: ID de la imagen
+        category_id: ID de la categoría
+        category_name: Nombre de la categoría  
+        bbox: Bounding box [x, y, width, height]
+        iou_threshold: Umbral IoU para considerar duplicado (0.7 = 70% de solapamiento)
+    
+    Returns:
+        dict: {'is_duplicate': bool, 'existing_annotation': dict or None, 'iou': float}
+    """
+    try:
+        if not bbox or len(bbox) < 4:
+            return {'is_duplicate': False, 'existing_annotation': None, 'iou': 0.0}
+        
+        # Buscar anotaciones existentes en la misma imagen con la misma categoría
+        query = {
+            'image_id': image_id,
+            '$or': [
+                {'category_id': category_id},
+                {'category': category_name}
+            ]
+        }
+        
+        existing_annotations = db.annotations.find(query)
+        
+        for annotation in existing_annotations:
+            existing_bbox = annotation.get('bbox')
+            if not existing_bbox or len(existing_bbox) < 4:
+                continue
+                
+            # Calcular IoU
+            iou = calculate_bbox_overlap(bbox, existing_bbox)
+            
+            # Si el IoU supera el umbral, es un duplicado
+            if iou >= iou_threshold:
+                return {
+                    'is_duplicate': True, 
+                    'existing_annotation': serialize_doc(annotation),
+                    'iou': iou
+                }
+        
+        return {'is_duplicate': False, 'existing_annotation': None, 'iou': 0.0}
+        
+    except Exception as e:
+        print(f"Error al verificar duplicados avanzados: {e}")
+        return {'is_duplicate': False, 'existing_annotation': None, 'iou': 0.0}
+
 # ==================== ENDPOINTS PARA ANOTACIONES ====================
 
 @app.route('/api/annotations', methods=['POST'])
@@ -416,13 +573,36 @@ def create_annotation():
             'modified_date': datetime.utcnow()
         }
         
+        # Verificar duplicados antes de crear la anotación
+        check_duplicates = data.get('check_duplicates', True)  # Por defecto verificar duplicados
+        
+        if check_duplicates and bbox:
+            duplicate_result = check_annotation_duplicate_advanced(
+                db, 
+                data['image_id'], 
+                data.get('category_id'), 
+                data.get('category', 'default'), 
+                bbox,
+                iou_threshold=0.7  # 70% de solapamiento
+            )
+            
+            if duplicate_result['is_duplicate']:
+                return jsonify({
+                    'message': 'Anotación duplicada detectada',
+                    'is_duplicate': True,
+                    'existing_annotation': duplicate_result['existing_annotation'],
+                    'iou': duplicate_result['iou'],
+                    'action': 'skipped'
+                }), 200
+        
         # Insertar en MongoDB
         result = db.annotations.insert_one(annotation_doc)
         annotation_doc['_id'] = str(result.inserted_id)
         
         return jsonify({
             'message': 'Anotación creada correctamente',
-            'annotation': serialize_doc(annotation_doc)
+            'annotation': serialize_doc(annotation_doc),
+            'is_duplicate': False
         })
         
     except Exception as e:
@@ -1777,6 +1957,20 @@ def process_coco_format(db, annotations_file, images_file, dataset_id):
                 annotation_doc['type'] = 'polygon'
                 annotation_doc['closed'] = True
 
+        # Verificar duplicados antes de crear la anotación
+        duplicate_result = check_annotation_duplicate_advanced(
+            db, 
+            image_id, 
+            category_id, 
+            category_doc.get('name', 'default') if category_doc else 'default', 
+            bbox,
+            iou_threshold=0.8  # Umbral más estricto para importaciones
+        )
+        
+        if duplicate_result['is_duplicate']:
+            print(f"⚠️ Anotación duplicada omitida (IoU: {duplicate_result['iou']:.3f})")
+            continue  # Saltar esta anotación
+        
         db.annotations.insert_one(annotation_doc)
         stats['annotations'] += 1
         category_annotation_count[category_id] = category_annotation_count.get(category_id, 0) + 1
@@ -1909,6 +2103,25 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id):
                         'dataset_id': dataset_id
                     }
                     
+                    # Verificar duplicados antes de crear la anotación
+                    category_id = category_map.get(class_id)
+                    if category_id:
+                        category_doc = db.categories.find_one({'_id': ObjectId(category_id)})
+                        category_name = category_doc.get('name', 'default') if category_doc else 'default'
+                        
+                        duplicate_result = check_annotation_duplicate_advanced(
+                            db, 
+                            image_id, 
+                            category_id, 
+                            category_name, 
+                            bbox,
+                            iou_threshold=0.8  # Umbral más estricto para importaciones
+                        )
+                        
+                        if duplicate_result['is_duplicate']:
+                            print(f"⚠️ Anotación YOLO duplicada omitida (IoU: {duplicate_result['iou']:.3f})")
+                            continue  # Saltar esta anotación
+                    
                     db.annotations.insert_one(annotation_doc)
                     stats['annotations'] += 1
     
@@ -2008,6 +2221,20 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id):
                         'created_date': datetime.utcnow(),
                         'dataset_id': dataset_id
                     }
+                    
+                    # Verificar duplicados antes de crear la anotación
+                    duplicate_result = check_annotation_duplicate_advanced(
+                        db, 
+                        image_id, 
+                        category_map[name], 
+                        name, 
+                        bbox,
+                        iou_threshold=0.8  # Umbral más estricto para importaciones
+                    )
+                    
+                    if duplicate_result['is_duplicate']:
+                        print(f"⚠️ Anotación Pascal duplicada omitida (IoU: {duplicate_result['iou']:.3f})")
+                        continue  # Saltar esta anotación
                     
                     db.annotations.insert_one(annotation_doc)
                     stats['annotations'] += 1
@@ -3146,12 +3373,31 @@ def predict_image():
                             'modified_date': datetime.utcnow()
                         }
                         
+                        # Verificar duplicados antes de crear la anotación
+                        duplicate_result = check_annotation_duplicate_advanced(
+                            db, 
+                            image_id, 
+                            category_id, 
+                            category_name, 
+                            bbox,
+                            iou_threshold=0.7  # 70% de solapamiento
+                        )
+                        
+                        if duplicate_result['is_duplicate']:
+                            print(f"Detección {i}: duplicado detectado (IoU: {duplicate_result['iou']:.3f}), saltando...")
+                            # Agregar a detecciones pero marcar como duplicado
+                            detection['is_duplicate'] = True
+                            detection['existing_annotation_id'] = duplicate_result['existing_annotation']['_id']
+                            detections.append(detection)
+                            continue
+                        
                         # Insertar anotación en MongoDB
                         annotation_result = db.annotations.insert_one(annotation_doc)
                         annotation_doc['_id'] = str(annotation_result.inserted_id)
                         created_annotations.append(serialize_doc(annotation_doc))
                         
                         print(f"Detección {i}: clase={cls} ({category_name}), confianza={conf:.3f}, bbox={bbox}, anotación creada con ID={annotation_doc['_id']}")
+                        detection['is_duplicate'] = False
                         detections.append(detection)
                         
                     except Exception as e:
@@ -3160,6 +3406,11 @@ def predict_image():
             else:
                 print("No se encontraron boxes en el resultado")
         
+        # Estadísticas de duplicados
+        duplicates_count = len([d for d in detections if d.get('is_duplicate', False)])
+        created_count = len(created_annotations)
+        total_detections = len(detections)
+        
         return jsonify({
             'success': True,
             'detections': detections,
@@ -3167,9 +3418,10 @@ def predict_image():
             'model_name': model_name,
             'categories': model_categories,
             'created_categories': [serialize_doc(cat) for cat in created_categories],
-            'total_detections': len(detections),
-            'total_annotations_created': len(created_annotations),
-            'message': f'Predicción completada. Se crearon {len(created_annotations)} anotaciones de {len(detections)} detecciones.'
+            'total_detections': total_detections,
+            'total_annotations_created': created_count,
+            'duplicates_skipped': duplicates_count,
+            'message': f'Predicción completada. Se crearon {created_count} anotaciones nuevas de {total_detections} detecciones. {duplicates_count} duplicados omitidos.'
         })
         
     except Exception as e:
