@@ -1160,9 +1160,11 @@ function handleAnnotationDragEnd(annotation, event) {
     const deltaCanvasX = groupPos.x
     const deltaCanvasY = groupPos.y
     
-    // Convertir a coordenadas de imagen
-    const deltaImageX = deltaCanvasX / scale.value
-    const deltaImageY = deltaCanvasY / scale.value
+
+    const deltaImageX = deltaCanvasX
+    const deltaImageY = deltaCanvasY
+
+    // -----------------------------------------------------------------
     
     // Si el movimiento es muy pequeño, ignorar
     if (Math.abs(deltaImageX) < 0.5 && Math.abs(deltaImageY) < 0.5) {
@@ -1343,10 +1345,14 @@ function handlePolygonPointDrag(annotation, pointIndex, event) {
   if (props.activeTool !== 'edit') return
   
   const node = event.target
-  const canvasPos = {
-    x: node.x(),
-    y: node.y()
-  }
+  // OBTENER EL NODO DEL STAGE
+  const stage = stageRef.value.getNode()
+
+  // Obtiene la posición lógica del cursor, que ya ha sido
+  // transformada correctamente por Konva (manejando el zoom).
+  const canvasPos = getRelativePointerPosition(stage)
+  
+
   const clampedX = clampImageX(toImageX(canvasPos.x))
   const clampedY = clampImageY(toImageY(canvasPos.y))
 
