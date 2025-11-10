@@ -15,7 +15,7 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Environment variables (CRÍTICO - No subir claves reales)
+# Environment variables
 .env
 *.env
 !.env.example
