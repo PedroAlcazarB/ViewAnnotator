@@ -525,7 +525,6 @@ export default {
       }
     },
     
-    // Métodos para herramientas de IA
     handleModelUnloaded() {
       console.log('Model unloaded')
       // Limpiar cualquier visualización de predicciones
