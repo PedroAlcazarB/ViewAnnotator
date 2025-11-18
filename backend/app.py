@@ -444,7 +444,7 @@ def find_videos_in_directory(directory_path, max_depth=3):
     return found_videos
 
 # Carpeta donde se guardarán las imágenes (backup)
-IMAGE_FOLDER = os.path.join(os.getcwd(), 'images')
+IMAGE_FOLDER = os.path.join(os.getcwd(), 'datasets')
 os.makedirs(IMAGE_FOLDER, exist_ok=True)
 
 # ==================== ENDPOINTS PARA IMÁGENES ====================
@@ -474,7 +474,7 @@ def upload_image(current_user_id):
         if dataset_id:
             dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
             if dataset:
-                dataset_folder_path = os.path.join(IMAGE_FOLDER, dataset['name'])
+                dataset_folder_path = os.path.join(IMAGE_FOLDER, str(dataset['_id']))
                 os.makedirs(dataset_folder_path, exist_ok=True)
             else:
                 return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
@@ -527,34 +527,22 @@ def upload_image(current_user_id):
         return jsonify({'error': f'Error al subir archivo: {str(e)}'}), 500
 
 def process_video_upload(video_file, current_user_id, dataset_id, db):
-    """Función auxiliar para procesar la subida de videos"""
+    """Función auxiliar para guardar el video sin procesarlo inmediatamente"""
     try:
         # Si hay dataset_id, verificar que pertenece al usuario
         dataset_folder_path = IMAGE_FOLDER
         if dataset_id:
             dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
             if dataset:
-                dataset_folder_path = os.path.join(IMAGE_FOLDER, dataset['name'])
+                dataset_folder_path = os.path.join(IMAGE_FOLDER, str(dataset['_id']))
                 os.makedirs(dataset_folder_path, exist_ok=True)
             else:
                 return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
-        # Guardar video temporal
+        # Guardar video
         video_filename = video_file.filename
         video_path = os.path.join(dataset_folder_path, video_filename)
         video_file.save(video_path)
-        
-        # Crear carpeta para frames del video
-        video_name_no_ext = os.path.splitext(video_filename)[0]
-        frames_folder = os.path.join(dataset_folder_path, f"{video_name_no_ext}_frames")
-        os.makedirs(frames_folder, exist_ok=True)
-        
-        # Extraer frames (1 fps por defecto)
-        fps = 1
-        frames_info = extract_video_frames(video_path, frames_folder, fps=fps)
-        
-        if not frames_info:
-            return jsonify({'error': 'No se pudieron extraer frames del video'}), 500
         
         # Obtener información del video
         video_capture = cv2.VideoCapture(video_path)
@@ -568,67 +556,32 @@ def process_video_upload(video_file, current_user_id, dataset_id, db):
         # Obtener tamaño del archivo
         video_size = os.path.getsize(video_path)
         
-        # Crear documento de video en MongoDB
+        # Crear documento de video en MongoDB (sin procesar aún)
         video_doc = {
             'filename': video_filename,
             'original_name': video_filename,
             'file_path': os.path.relpath(video_path, IMAGE_FOLDER),
-            'frames_folder': os.path.relpath(frames_folder, IMAGE_FOLDER),
             'size': video_size,
             'width': width,
             'height': height,
             'fps': video_fps,
             'duration': duration,
             'total_frames': total_frames,
-            'extracted_frames': len(frames_info),
-            'frames_count': len(frames_info),  # Agregar frames_count para compatibilidad con frontend
             'upload_date': datetime.utcnow(),
             'dataset_id': dataset_id,
             'user_id': current_user_id,
-            'type': 'video'
+            'type': 'video',
+            'processed': False
         }
         
         result = db.videos.insert_one(video_doc)
         video_id = str(result.inserted_id)
         video_doc['_id'] = video_id
         
-        # Guardar frames en la colección de imágenes con referencia al video
-        frame_ids = []
-        for frame_info in frames_info:
-            frame_doc = {
-                'filename': frame_info['filename'],
-                'original_name': frame_info['filename'],
-                'file_path': os.path.relpath(frame_info['file_path'], IMAGE_FOLDER),
-                'data': frame_info['data'],
-                'content_type': 'image/jpeg',
-                'size': len(base64.b64decode(frame_info['data'])),
-                'width': frame_info['width'],
-                'height': frame_info['height'],
-                'upload_date': datetime.utcnow(),
-                'dataset_id': dataset_id,
-                'user_id': current_user_id,
-                'video_id': video_id,
-                'frame_number': frame_info['frame_number'],
-                'timestamp': frame_info['timestamp'],
-                'type': 'video_frame'
-            }
-            
-            frame_result = db.images.insert_one(frame_doc)
-            frame_ids.append(str(frame_result.inserted_id))
-
-        # Guardar frame de vista previa con el primer frame extraído
-        if frame_ids:
-            video_doc['thumbnail_frame_id'] = frame_ids[0]
-            db.videos.update_one(
-                {'_id': ObjectId(video_id)},
-                {'$set': {'thumbnail_frame_id': frame_ids[0]}}
-            )
-
         return jsonify({
-            'message': 'Video subido y procesado correctamente',
+            'message': 'Video subido correctamente',
             'video': serialize_doc(video_doc),
-            'frames_count': len(frame_ids),
-            'frame_ids': frame_ids
+            'requires_processing': True
         })
         
     except Exception as e:
@@ -652,12 +605,14 @@ def get_images(current_user_id):
         else:
             query_filter['project_id'] = project_id
 
-        # Obtener imágenes (excluir frames de video si no se solicitan)
+        # Obtener imágenes (excluir frames de video)
         image_filter = query_filter.copy()
         image_filter['$or'] = [
             {'type': 'image'},
             {'type': {'$exists': False}}  # Compatibilidad con imágenes antiguas
         ]
+        # Excluir explícitamente frames de video
+        image_filter['video_id'] = {'$exists': False}
         
         images = list(db.images.find(
             image_filter,
@@ -796,11 +751,6 @@ def delete_image(current_user_id, image_id):
         
     except Exception as e:
         return jsonify({'error': f'Error al eliminar imagen: {str(e)}'}), 500
-
-# Ruta para servir imágenes desde la carpeta "images" (backward compatibility)
-@app.route('/images/<filename>')
-def serve_image(filename):
-    return send_from_directory(IMAGE_FOLDER, filename)
 
 # ==================== FUNCIONES AUXILIARES PARA ANOTACIONES ====================
 
@@ -961,6 +911,92 @@ def check_annotation_duplicate_advanced(db, image_id, category_id, category_name
 
 # ==================== ENDPOINTS PARA VIDEOS ====================
 
+@app.route('/api/videos/process', methods=['POST'])
+@token_required
+def process_video_with_fps(current_user_id):
+    """Procesar un video ya subido con un FPS personalizado"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'video_id' not in data:
+            return jsonify({'error': 'video_id es requerido'}), 400
+        
+        video_id = data['video_id']
+        fps = float(data.get('fps', 1))
+        
+        if not ObjectId.is_valid(video_id):
+            return jsonify({'error': 'ID de video inválido'}), 400
+        
+        db = get_db()
+        video_doc = db.videos.find_one({'_id': ObjectId(video_id), 'user_id': current_user_id})
+        
+        if not video_doc:
+            return jsonify({'error': 'Video no encontrado o no autorizado'}), 403
+        
+        video_path = os.path.join(IMAGE_FOLDER, video_doc['file_path'])
+        
+        if not os.path.exists(video_path):
+            return jsonify({'error': 'Archivo de video no encontrado'}), 404
+        
+        # Crear carpeta para frames
+        video_name_no_ext = os.path.splitext(video_doc['filename'])[0]
+        dataset_folder = os.path.dirname(video_path)
+        frames_folder = os.path.join(dataset_folder, f"{video_name_no_ext}_frames")
+        os.makedirs(frames_folder, exist_ok=True)
+        
+        # Extraer frames
+        frames_info = extract_video_frames(video_path, frames_folder, fps=fps)
+        
+        if not frames_info:
+            return jsonify({'error': 'No se pudieron extraer frames del video'}), 500
+        
+        # Actualizar documento de video
+        db.videos.update_one(
+            {'_id': ObjectId(video_id)},
+            {'$set': {
+                'frames_folder': os.path.relpath(frames_folder, IMAGE_FOLDER),
+                'extracted_frames': len(frames_info),
+                'frames_count': len(frames_info),
+                'extraction_fps': fps,
+                'processed': True,
+                'processed_date': datetime.utcnow()
+            }}
+        )
+        
+        # Guardar frames en la colección de imágenes marcados como frames de video
+        frame_ids = []
+        for frame_info in frames_info:
+            frame_doc = {
+                'filename': frame_info['filename'],
+                'original_name': frame_info['filename'],
+                'file_path': os.path.relpath(frame_info['file_path'], IMAGE_FOLDER),
+                'data': frame_info['data'],
+                'content_type': 'image/jpeg',
+                'size': len(base64.b64decode(frame_info['data'])),
+                'width': frame_info['width'],
+                'height': frame_info['height'],
+                'upload_date': datetime.utcnow(),
+                'dataset_id': video_doc.get('dataset_id'),
+                'user_id': current_user_id,
+                'type': 'video_frame',
+                'video_id': video_id,
+                'frame_number': frame_info['frame_number'],
+                'timestamp': frame_info['timestamp']
+            }
+            
+            result = db.images.insert_one(frame_doc)
+            frame_ids.append(str(result.inserted_id))
+        
+        return jsonify({
+            'message': f'Video procesado correctamente. Se extrajeron {len(frames_info)} frames.',
+            'video_id': video_id,
+            'frames_count': len(frames_info),
+            'frame_ids': frame_ids
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al procesar video: {str(e)}'}), 500
+
 @app.route('/api/videos', methods=['POST'])
 @token_required
 def upload_video(current_user_id):
@@ -985,7 +1021,7 @@ def upload_video(current_user_id):
         if dataset_id:
             dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
             if dataset:
-                dataset_folder_path = os.path.join(IMAGE_FOLDER, dataset['name'])
+                dataset_folder_path = os.path.join(IMAGE_FOLDER, str(dataset['_id']))
                 os.makedirs(dataset_folder_path, exist_ok=True)
             else:
                 return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
@@ -1300,7 +1336,7 @@ def create_annotation(current_user_id):
                 data.get('category_id'), 
                 data.get('category', 'default'), 
                 bbox,
-                iou_threshold=0.7  # 70% de solapamiento
+                iou_threshold=0.95  # 95% de solapamiento
             )
             
             if duplicate_result['is_duplicate']:
@@ -1871,11 +1907,14 @@ def get_datasets(current_user_id):
         # Filtrar solo datasets del usuario actual
         datasets = list(db.datasets.find({'user_id': current_user_id}, {'images': 0}))  # Excluir lista de imágenes para listar
         
-        # Contar imágenes para cada dataset
+        # Contar archivos (imágenes + videos) para cada dataset
         for dataset in datasets:
             dataset_id = str(dataset['_id'])
-            image_count = db.images.count_documents({'dataset_id': dataset_id, 'user_id': current_user_id})
-            dataset['image_count'] = image_count
+            # Imágenes que no son frames de video
+            n_images = db.images.count_documents({'dataset_id': dataset_id, 'user_id': current_user_id, 'video_id': {'$exists': False}})
+            # Videos
+            n_videos = db.videos.count_documents({'dataset_id': dataset_id, 'user_id': current_user_id})
+            dataset['file_count'] = n_images + n_videos
         
         return jsonify({
             'datasets': [serialize_doc(ds) for ds in datasets]
@@ -1896,19 +1935,24 @@ def create_dataset(current_user_id):
         
         db = get_db()
         
-        # Verificar que no existe un dataset con el mismo nombre para este usuario
+        # Permitir que diferentes usuarios tengan datasets con el mismo nombre
+        # Solo verificar duplicados para el mismo usuario
         existing = db.datasets.find_one({'name': data['name'], 'user_id': current_user_id})
         if existing:
-            return jsonify({'error': 'Ya existe un dataset con ese nombre'}), 400
+            return jsonify({'error': 'Ya existe un dataset con ese nombre para tu usuario'}), 400
         
+        # Obtener el nombre del usuario
+        user = db.users.find_one({'_id': ObjectId(current_user_id)})
+        nombre_usuario = user.get('full_name') or user.get('username') or 'usuario'
+
         # Crear documento de dataset
         dataset_doc = {
             'name': data['name'],
             'description': data.get('description', ''),
-            'folder_path': f"/images/{data['name']}",
+            'folder_path': f"/datasets/{data['name']}",
             'categories': data.get('categories', []),
             'created_date': datetime.utcnow(),
-            'created_by': data.get('created_by', 'usuario'),
+            'created_by': nombre_usuario,
             'image_count': 0,
             'user_id': current_user_id  # Asociar dataset al usuario
         }
@@ -1917,8 +1961,8 @@ def create_dataset(current_user_id):
         result = db.datasets.insert_one(dataset_doc)
         dataset_doc['_id'] = str(result.inserted_id)
         
-        # Crear directorio físico
-        dataset_folder = os.path.join(IMAGE_FOLDER, data['name'])
+        # Crear directorio físico usando el ID del dataset
+        dataset_folder = os.path.join(IMAGE_FOLDER, str(result.inserted_id))
         os.makedirs(dataset_folder, exist_ok=True)
         
         return jsonify({
@@ -1996,20 +2040,19 @@ def delete_dataset(current_user_id, dataset_id):
         # Eliminar todas las imágenes del dataset de la base de datos
         images_result = db.images.delete_many({'dataset_id': dataset_id})
         
-        # Eliminar carpeta física completa del dataset
-        if dataset_name:
-            dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
-            try:
-                if os.path.exists(dataset_folder):
-                    import shutil
-                    shutil.rmtree(dataset_folder)
-                    deleted_folder = True
-                    print(f"Carpeta del dataset eliminada: {dataset_folder}")
-                else:
-                    print(f"Carpeta del dataset no encontrada: {dataset_folder}")
-            except Exception as folder_error:
-                print(f"Error al eliminar carpeta del dataset {dataset_folder}: {str(folder_error)}")
-                # No fallar la operación completa si solo falla la eliminación de la carpeta
+        # Eliminar carpeta física completa del dataset usando el ID
+        dataset_folder = os.path.join(IMAGE_FOLDER, str(dataset_id))
+        try:
+            if os.path.exists(dataset_folder):
+                import shutil
+                shutil.rmtree(dataset_folder)
+                deleted_folder = True
+                print(f"Carpeta del dataset eliminada: {dataset_folder}")
+            else:
+                print(f"Carpeta del dataset no encontrada: {dataset_folder}")
+        except Exception as folder_error:
+            print(f"Error al eliminar carpeta del dataset {dataset_folder}: {str(folder_error)}")
+            # No fallar la operación completa si solo falla la eliminación de la carpeta
         
         # Eliminar el dataset de la base de datos
         dataset_result = db.datasets.delete_one({'_id': ObjectId(dataset_id)})
@@ -2064,8 +2107,8 @@ def import_dataset_zip(current_user_id):
         result = db.datasets.insert_one(dataset_doc)
         dataset_id = str(result.inserted_id)
         
-        # Crear directorio
-        dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
+        # Crear directorio usando el ID del dataset
+        dataset_folder = os.path.join(IMAGE_FOLDER, dataset_id)
         os.makedirs(dataset_folder, exist_ok=True)
         
         # Descomprimir y procesar ZIP
@@ -2225,8 +2268,8 @@ def import_images_to_dataset(current_user_id):
         if not dataset:
             return jsonify({'error': 'Dataset no encontrado'}), 404
         
-        dataset_name = dataset['name']
-        dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
+        # Usar el ID del dataset para la carpeta
+        dataset_folder = os.path.join(IMAGE_FOLDER, str(dataset_id))
         os.makedirs(dataset_folder, exist_ok=True)
         
         # Usar directorio temporal para el ZIP (fuera del volumen monitoreado)
@@ -2384,8 +2427,8 @@ def reprocess_images_from_folder(current_user_id, dataset_id):
         if not dataset:
             return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
-        dataset_name = dataset['name']
-        dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
+        # Usar el ID del dataset para la carpeta
+        dataset_folder = os.path.join(IMAGE_FOLDER, str(dataset_id))
         
         if not os.path.exists(dataset_folder):
             return jsonify({'error': 'Carpeta del dataset no encontrada'}), 404

@@ -178,6 +178,17 @@ export const useAnnotationStore = defineStore('annotation', {
       }
     },
 
+    // Actualización local reactiva para feedback instantáneo durante eventos de drag
+    updateAnnotationLocally(annotationId, updates) {
+      const index = this.annotations.findIndex(ann => (ann._id || ann.id) === annotationId)
+      if (index !== -1) {
+        // Mantener la referencia para que Vue detecte los cambios
+        Object.assign(this.annotations[index], updates)
+      } else {
+        console.warn('Could not find annotation locally to update:', annotationId)
+      }
+    },
+
     async undoLastAction(imageId) {
       if (!imageId) return false
       const stack = this.undoStacks[imageId]
@@ -457,9 +468,10 @@ export const useAnnotationStore = defineStore('annotation', {
         const data = await window.$apiPut(`/api/annotations/${annotationId}`, updates)
         
         // Actualizar anotación en el estado local
-        const index = this.annotations.findIndex(ann => ann._id === annotationId)
+        const index = this.annotations.findIndex(ann => (ann._id || ann.id) === annotationId)
         if (index !== -1) {
-          this.annotations[index] = data.annotation
+          // Reemplazar usando splice para mantener reactividad
+          this.annotations.splice(index, 1, data.annotation)
         }
         
         return data.annotation
@@ -754,9 +766,10 @@ export const useAnnotationStore = defineStore('annotation', {
         const data = await window.$apiPut(`/api/annotations/${annotationId}`, updates)
         
         // Actualizar en el estado local
-        const index = this.annotations.findIndex(ann => ann._id === annotationId)
+        const index = this.annotations.findIndex(ann => (ann._id || ann.id) === annotationId)
         if (index !== -1) {
-          this.annotations[index] = { ...this.annotations[index], ...updates }
+          // Actualizar propiedades existentes sin reemplazar el objeto
+          Object.assign(this.annotations[index], updates)
         }
         
         return data.annotation

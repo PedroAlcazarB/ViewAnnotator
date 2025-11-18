@@ -6,10 +6,10 @@
       
       <div class="actions">
         <button @click="showCreateModal = true" class="btn btn-success">
-          Crear
+          <i class="fas fa-plus"></i> Crear
         </button>
         <button @click="refreshDatasets" class="btn btn-secondary">
-          Actualizar
+          <i class="fas fa-sync-alt"></i> Actualizar
         </button>
       </div>
     </div>
@@ -22,18 +22,24 @@
         class="dataset-card"
         @click="selectDataset(dataset)"
       >
-        <div class="dataset-icon">
-          <i class="fas fa-folder"></i>
+        <div class="card-header">
+          <div class="dataset-icon">
+            <i class="fas fa-folder"></i>
+          </div>
+          <div class="dataset-actions">
+            <button @click.stop="deleteDataset(dataset)" class="btn-icon" title="Eliminar">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
         </div>
         <div class="dataset-info">
-          <h3>{{ dataset.name }}</h3>
-          <p class="image-count">{{ dataset.image_count || 0 }} imágenes en el dataset</p>
-          <p class="creator">Creado por {{ dataset.created_by || 'usuario' }}</p>
-        </div>
-        <div class="dataset-actions">
-          <button @click.stop="deleteDataset(dataset)" class="btn-icon">
-            <i class="fas fa-trash"></i>
-          </button>
+          <h3 class="dataset-name">{{ dataset.name }}</h3>
+          <div class="dataset-meta">
+            <span class="meta-item">
+              {{ dataset.file_count || 0 }} archivo{{ dataset.file_count !== 1 ? 's' : '' }}
+            </span>
+          </div>
+          <p class="creator">Creado por {{ dataset.created_by }}</p>
         </div>
       </div>
     </div>
@@ -71,7 +77,7 @@
               <span class="path-icon">📁</span>
               <span class="path-text">{{ newDataset.folder_path }}</span>
             </div>
-            <p class="help-text">Las imágenes se guardarán en este directorio automáticamente</p>
+            <p class="help-text">Los archivos se guardarán en este directorio automáticamente</p>
           </div>
         </div>
         
@@ -109,7 +115,7 @@ export default {
       newDataset: {
         name: '',
         description: '',
-        folder_path: '/images/'
+        folder_path: '/datasets/'
       }
     }
   },
@@ -123,7 +129,7 @@ export default {
   },
   watch: {
     'newDataset.name'(newName) {
-      this.newDataset.folder_path = `/images/${newName || ''}`
+      this.newDataset.folder_path = `/datasets/${newName || ''}`
     },
     showCreateModal(newVal) {
       if (newVal) {
@@ -138,7 +144,7 @@ export default {
     async loadDatasets() {
       try {
         this.loading = true
-        this.loadingMessage = 'Loading datasets...'
+        this.loadingMessage = 'Cargando datasets...'
         
         const data = await this.$apiGet('/api/datasets')
         this.datasets = data.datasets || []
@@ -157,7 +163,7 @@ export default {
       
       try {
         this.loading = true
-        this.loadingMessage = 'Creating dataset...'
+        this.loadingMessage = 'Creando dataset...'
         
         await this.$apiPost('/api/datasets', this.newDataset)
         this.closeModal()
@@ -178,7 +184,7 @@ export default {
       
       try {
         this.loading = true
-        this.loadingMessage = 'Deleting dataset...'
+        this.loadingMessage = 'Eliminando dataset...'
         
         await this.$apiDelete(`/api/datasets/${dataset._id}`)
         await this.loadDatasets()
@@ -213,7 +219,7 @@ export default {
       this.newDataset = {
         name: '',
         description: '',
-        folder_path: '/images/'
+        folder_path: '/datasets/'
       }
       this.showError = false
     }
@@ -223,43 +229,50 @@ export default {
 
 <style scoped>
 .dataset-manager {
-  padding: 20px;
-  max-width: 1200px;
+  padding: 2rem;
+  max-width: 1400px;
   margin: 0 auto;
+  min-height: 100vh;
 }
 
 .header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 2.5rem;
 }
 
 .header h1 {
   font-size: 2.5rem;
-  color: #333;
-  margin-bottom: 10px;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
 }
 
 .subtitle {
-  color: #666;
-  font-size: 1.1rem;
-  margin-bottom: 20px;
+  color: #5a6c7d;
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
 }
 
 .actions {
   display: flex;
-  gap: 10px;
+  gap: 0.75rem;
   justify-content: center;
-  margin-bottom: 30px;
+  margin-top: 1.5rem;
 }
 
 .btn {
-  padding: 10px 20px;
+  padding: 0.6rem 1.5rem;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .btn-success {
@@ -278,62 +291,105 @@ export default {
 }
 
 .btn:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .dataset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-top: 2rem;
 }
 
 .dataset-card {
   background: white;
-  border-radius: 10px;
-  border: 1px solid #e0e0e0;
-  padding: 20px;
+  border-radius: 12px;
+  border: 2px solid #e1e8ed;
+  overflow: hidden;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .dataset-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-4px);
+  border-color: #007bff;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1rem 0.5rem 1rem;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
 }
 
 .dataset-icon {
-  text-align: center;
-  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .dataset-icon i {
-  font-size: 3rem;
-  color: #ccc;
+  font-size: 2.5rem;
+  color: #007bff;
+  opacity: 0.85;
 }
 
-.dataset-info h3 {
-  font-size: 1.3rem;
-  color: #333;
-  margin-bottom: 8px;
+.dataset-info {
+  padding: 0.75rem 1rem 1rem 1rem;
 }
 
-.image-count {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 5px;
+.dataset-name {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  margin: 0 0 0.75rem 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataset-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #495057;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: #f1f3f5;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+}
+
+.meta-item i {
+  color: #007bff;
+  font-size: 13px;
 }
 
 .creator {
-  color: #999;
-  font-size: 0.8rem;
+  color: #868e96;
+  font-size: 0.75rem;
+  margin: 0.5rem 0 0 0;
+  font-weight: 500;
 }
 
 .dataset-actions {
-  position: absolute;
-  top: 10px;
-  right: 10px;
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -343,19 +399,24 @@ export default {
 }
 
 .btn-icon {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid #dc3545;
-  border-radius: 4px;
+  background: white;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
   cursor: pointer;
-  padding: 8px;
+  padding: 0.4rem 0.5rem;
   color: #dc3545;
-  font-size: 12px;
+  font-size: 13px;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-icon:hover {
   background: #dc3545;
   color: white;
+  border-color: #dc3545;
+  transform: scale(1.05);
 }
 
 /* Modal Styles */

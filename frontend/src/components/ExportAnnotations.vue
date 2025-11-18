@@ -61,6 +61,7 @@
               <li>Archivos .txt con el mismo nombre que las imágenes</li>
               <li>Cada línea: <code>class_id center_x center_y width height</code></li>
               <li>Archivo classes.txt con las clases (una por línea)</li>
+              <li>Este formato no soporta polígonos; las anotaciones de polígonos se exportarán como rectángulos.</li>
             </ul>
           </div>
 
@@ -70,6 +71,8 @@
             <ul>
               <li>Archivos .xml con el mismo nombre que las imágenes</li>
               <li>Cada XML contiene las anotaciones con coordenadas absolutas</li>
+              <li>Este formato no soporta polígonos; las anotaciones de polígonos se exportarán como rectángulos.</li>
+
             </ul>
           </div>
         </div>

@@ -2,13 +2,15 @@
   <div class="categories-manager">
     <!-- Header -->
     <div class="categories-header">
-      <h3>Gestión de Categorías</h3>
-      <div class="header-buttons">
-        <button @click="showImportModal = true" class="btn-import" title="Importar categorías">
-          📥 Importar
+      <h3 class="categories-title">Gestión de Categorías</h3>
+      <div class="header-buttons-row">
+        <button @click="showImportModal = true" class="btn-import" title="Importar categorías de otros datasets">
+          <i class="fas fa-file-import"></i>
+          <span>Importar</span>
         </button>
         <button @click="showAddForm = true" class="btn-primary">
-          + Nueva
+          <i class="fas fa-plus-circle"></i>
+          <span>Nueva</span>
         </button>
       </div>
     </div>
@@ -23,6 +25,7 @@
           type="text" 
           class="form-input"
           placeholder="Nombre de la categoría"
+          @keydown.enter="addCategory"
         >
       </div>
       <div class="form-group">
@@ -52,8 +55,8 @@
         <h4>No hay categorías disponibles</h4>
         <p>Crea tu primera categoría para comenzar a anotar</p>
         <button @click="showAddForm = true" class="btn-create-first">
-          <span class="icon">✨</span>
-          Crear primera categoría
+          <i class="fas fa-folder-plus"></i>
+          <span>Crear primera categoría</span>
         </button>
       </div>
       
@@ -160,18 +163,6 @@
           <button @click="cancelEdit" class="btn-secondary">Cancelar</button>
         </div>
       </div>
-    </div>
-
-    <!-- Categoría seleccionada actual -->
-    <div v-if="selectedCategory" class="current-selection">
-      <div class="selected-category">
-        <div 
-          class="category-color small" 
-          :style="{ backgroundColor: selectedCategoryData?.color }"
-        ></div>
-        <span>Categoría: {{ selectedCategoryData?.name }}</span>
-      </div>
-      <p class="help-text">Las nuevas anotaciones se asignarán a esta categoría</p>
     </div>
 
     <!-- Modal de importación de categorías -->
@@ -581,24 +572,30 @@ watch(showImportModal, (newValue) => {
   border-color: #95a5a6;
 }
 
-.categories-list {
+.categories-header {
+  gap: 0.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  align-items: center;
+  margin-bottom: 1.2rem;
 }
 
-.loading-state, .empty-state {
+.categories-title {
+  color: #2c3e50;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
   text-align: center;
-  padding: 2rem;
-  color: #666;
 }
 
-.category-section {
-  border: 1px solid #e1e5e9;
-  border-radius: 6px;
-  background: white;
-  overflow: hidden;
+.header-buttons-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.2rem;
+  margin-bottom: 0.5rem;
 }
 
 .category-header {
@@ -668,7 +665,7 @@ watch(showImportModal, (newValue) => {
   color: #666;
   font-size: 1rem;
   margin-left: 0.5rem;
-  margin-right: 1rem;
+  margin-right: 0.65rem;
   display: flex;
   align-items: center;
   line-height: 1;
@@ -677,7 +674,7 @@ watch(showImportModal, (newValue) => {
 
 .category-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.65rem;
 }
 
 .btn-edit, .btn-delete, .btn-visibility {
@@ -880,23 +877,28 @@ watch(showImportModal, (newValue) => {
   font-size: 0.9rem;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
 
+.btn-import i {
+  font-size: 1rem;
+}
+
 .btn-import:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
   background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
 }
 
 .btn-import:active {
   transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #3498db 0%, #2c3e50 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: white;
   border: none;
   padding: 0.65rem 1.25rem;
@@ -905,20 +907,25 @@ watch(showImportModal, (newValue) => {
   font-weight: 600;
   font-size: 0.9rem;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
-  display: flex;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
 
+.btn-primary i {
+  font-size: 1rem;
+}
+
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
-  background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
 }
 
 .btn-primary:active {
   transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 /* ==================== ESTILOS ESPECÍFICOS PARA MODAL DE IMPORTACIÓN ==================== */
@@ -987,7 +994,7 @@ watch(showImportModal, (newValue) => {
 
 .loading-state, .empty-state {
   text-align: center;
-  padding: 3rem 2rem;
+  padding: 1.5rem 1rem;
   color: #7f8c8d;
 }
 
@@ -999,59 +1006,60 @@ watch(showImportModal, (newValue) => {
 }
 
 .empty-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
   opacity: 0.7;
 }
 
 .empty-state h4 {
   color: #2c3e50;
-  margin: 0 0 0.5rem 0;
-  font-size: 1.2rem;
+  margin: 0 0 0.3rem 0;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
 .empty-state p {
   color: #7f8c8d;
-  margin: 0 0 2rem 0;
-  font-size: 0.95rem;
+  margin: 0 0 1rem 0;
+  font-size: 0.8rem;
 }
 
 .btn-create-first {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  padding: 1rem 2rem;
-  border-radius: 12px;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-  display: inline-flex;
+  font-size: 0.85rem;
+  display: flex;
   align-items: center;
-  gap: 0.75rem;
-  position: relative;
-  overflow: hidden;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 8px rgba(102, 126, 234, 0.4);
+  margin: 0 auto;
+}
+
+.btn-create-first i {
+  font-size: 1.2rem;
+  animation: pulse 2s ease-in-out infinite;
 }
 
 .btn-create-first:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 8px 25px rgba(139, 92, 246, 0.5);
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
 }
 
 .btn-create-first:active {
   transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
 }
 
-.btn-create-first .icon {
-  font-size: 1.1rem;
-  animation: sparkle 2s infinite;
-}
-
-@keyframes sparkle {
-  0%, 100% { transform: scale(1) rotate(0deg); }
-  50% { transform: scale(1.1) rotate(10deg); }
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.9; }
 }
 </style>

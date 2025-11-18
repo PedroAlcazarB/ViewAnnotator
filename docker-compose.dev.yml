@@ -28,7 +28,7 @@ services:
       - MONGO_URI=mongodb://mongo:27017/
     volumes:
       - ./backend:/app
-      - ./backend/images:/app/images
+      - ./backend/datasets:/app/datasets
     command: flask run --host=0.0.0.0 --port=5000 --reload 
     depends_on:
       - mongo

@@ -8,7 +8,7 @@
       <button
         :class="['tool-btn', { active: activeTool === 'pan' }]"
         @click="setActiveTool('pan')"
-        title="Mover Vista (Pan)"
+        title="💡 Arrastra para moverte por la imagen. Usa la rueda del ratón para zoom. Tecla 'R' para resetear."
       >
         <i class="fas fa-hand-paper"></i>
         <span>Mover</span>
@@ -18,7 +18,7 @@
       <button
         :class="['tool-btn', { active: activeTool === 'edit' }]"
         @click="setActiveTool('edit')"
-        title="Editar Anotaciones"
+        title="💡 Haz clic en una anotación para seleccionarla y editarla. Arrastra para mover, usa los controles para redimensionar.++"
       >
         <i class="fas fa-edit"></i>
         <span>Editar</span>
@@ -28,7 +28,7 @@
       <button
         :class="['tool-btn', { active: activeTool === 'bbox' }]"
         @click="setActiveTool('bbox')"
-        title="Rectángulo delimitador"
+        title="💡 Arrastra para crear un rectángulo delimitador."
       >
         <i class="fas fa-vector-square"></i>
         <span>Rectángulo</span>
@@ -38,7 +38,7 @@
       <button
         :class="['tool-btn', { active: activeTool === 'polygon' }]"
         @click="setActiveTool('polygon')"
-        title="Herramienta de Polígono"
+        title="💡 Haz clic para agregar puntos. Doble clic o Enter para completar. Escape para cancelar."
       >
         <i class="fas fa-draw-polygon"></i>
         <span>Polígono</span>
@@ -48,86 +48,11 @@
       <button
         :class="['tool-btn', { active: activeTool === 'eraser' }]"
         @click="setActiveTool('eraser')"
-        title="Borrador"
+        title="💡 Mantén presionado y arrastra para borrar anotaciones."
       >
         <i class="fas fa-eraser"></i>
         <span>Borrador</span>
       </button>
-    </div>
-
-    <!-- Tool Settings Panel -->
-    <div v-if="activeTool && activeTool !== 'edit'" class="tool-settings">
-      <h4>Configuración: {{ getToolDisplayName(activeTool) }}</h4>
-      
-      <!-- Instrucciones específicas -->
-      <div class="tool-instructions">
-        <div v-if="activeTool === 'pan'" class="instruction">
-          <small>💡 Arrastra para moverte por la imagen. Usa la rueda del ratón para zoom. Tecla 'R' para resetear.</small>
-        </div>
-        <div v-if="activeTool === 'polygon'" class="instruction">
-          <small>💡 Haz clic para agregar puntos. Doble clic o Enter para completar. Escape para cancelar.</small>
-        </div>
-        <div v-if="activeTool === 'eraser'" class="instruction">
-          <small>💡 Mantén presionado y arrastra para borrar anotaciones.</small>
-        </div>
-        <div v-if="activeTool === 'bbox'" class="instruction">
-          <small>💡 Arrastra para crear un rectángulo delimitador.</small>
-        </div>
-      </div>
-
-    <!-- Edit Tool Settings -->
-    <div v-if="activeTool === 'edit'" class="tool-settings">
-      <h4>Modo de Edición</h4>
-      
-      <div class="tool-instructions">
-        <div class="instruction">
-          <small>💡 Haz clic en una anotación para seleccionarla y editarla. Arrastra para mover, usa los controles para redimensionar.</small>
-        </div>
-      </div>
-      
-      <div class="settings-group">
-        <div class="setting-item">
-          <label>Sensibilidad de selección:</label>
-          <input 
-            type="range" 
-            min="1" 
-            max="10" 
-            v-model="toolSettings.edit.tolerance"
-            class="range-input"
-          />
-          <span>{{ toolSettings.edit.tolerance }}px</span>
-        </div>
-        <label>
-          <input 
-            type="checkbox" 
-            v-model="toolSettings.edit.showHandles"
-          />
-          Mostrar controles de redimensionado
-        </label>
-        <label>
-          <input 
-            type="checkbox" 
-            v-model="toolSettings.edit.snapToGrid"
-          />
-          Ajustar a grilla
-        </label>
-      </div>
-    </div>
-      
-      <!-- BBox Settings -->
-      <div v-if="activeTool === 'bbox'" class="settings-group">
-        <!-- Configuraciones eliminadas: el color viene determinado por la categoría -->
-      </div>
-
-      <!-- Polygon Settings -->
-      <div v-if="activeTool === 'polygon'" class="settings-group">
-        <!-- Settings eliminados: ya no son necesarios -->
-      </div>
-
-      <!-- Eraser Settings -->
-      <div v-if="activeTool === 'eraser'" class="settings-group">
-        <!-- Configuración de tamaño eliminada: no es necesaria -->
-      </div>
     </div>
 
     <!-- Quick Actions -->

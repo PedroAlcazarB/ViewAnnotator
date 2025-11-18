@@ -19,7 +19,8 @@ db.categories.createIndex({ "dataset_id": 1 });
 db.categories.createIndex({ "name": 1, "dataset_id": 1 }, { unique: true });
 
 // Crear índice para datasets
-db.datasets.createIndex({ "name": 1 }, { unique: true });
+// Índice único compuesto para permitir nombres repetidos por usuario
+db.datasets.createIndex({ "name": 1, "user_id": 1 }, { unique: true });
 db.datasets.createIndex({ "created_at": -1 });
 
 print('Base de datos visilab_annotator inicializada correctamente');

@@ -138,16 +138,6 @@
             </button>
           </div>
           
-          <!-- Mini gestor de categorías -->
-          <div class="mini-category-selector">
-            <label>Categoría activa:</label>
-            <select v-model="store.selectedCategory" class="category-select">
-              <option v-for="category in store.categories" :key="category._id" :value="category._id">
-                {{ category.name }}
-              </option>
-            </select>
-          </div>
-          
           <ExportCOCO />
           <button @click="closeAnnotationView" class="close-btn">Cerrar</button>
         </div>

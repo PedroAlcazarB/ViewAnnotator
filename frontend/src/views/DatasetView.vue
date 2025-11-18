@@ -9,7 +9,7 @@
         </button>
         <div class="dataset-info">
           <h1>{{ dataset.name }}</h1>
-          <p>{{ filteredMedia.length }} elementos{{ filterStatus !== 'all' ? ' filtrados' : '' }}</p>
+          <p>{{ filteredMedia.length }} archivo{{ filteredMedia.length !== 1 ? 's' : '' }}{{ filterStatus !== 'all' ? ' filtrados' : '' }}</p>
         </div>
       </div>
       
@@ -83,10 +83,10 @@
           </div>
           
           <div v-else-if="!hasAnyMedia" class="no-images">
-            <i class="fas fa-images"></i>
-            <p>No se encontraron elementos en el dataset</p>
+            <i class="fas fa-file"></i>
+            <p>No se encontraron archivos en el dataset</p>
             <button @click="showUploadModal = true" class="btn btn-primary">
-              Subir Imágenes
+              Subir archivos
             </button>
           </div>
           
@@ -136,7 +136,7 @@
             <!-- Mensaje cuando no hay resultados del filtro -->
             <div v-if="filteredMedia.length === 0" class="no-images">
               <i class="fas fa-filter"></i>
-              <p>No hay elementos que coincidan con el filtro seleccionado</p>
+              <p>No hay archivos que coincidan con el filtro seleccionado</p>
               <button @click="filterStatus = 'all'" class="btn btn-secondary">
                 Limpiar filtro
               </button>
@@ -184,7 +184,7 @@
                     <div class="image-info">
                       <p class="filename">{{ media.item.filename }}</p>
                       <p class="annotations-count">
-                        {{ getAnnotationCount(media.item) }} annotations
+                        {{ getAnnotationCount(media.item) }} anotaciones
                       </p>
                     </div>
                     <div class="image-actions">
@@ -234,7 +234,7 @@
           <div v-if="filteredMedia.length > 0" class="page-info">
             <span>Página {{ currentPage }} de {{ totalPages }}</span>
             <span class="separator">•</span>
-            <span>Mostrando {{ Math.min(startIndex + 1, filteredMedia.length) }}-{{ Math.min(endIndex, filteredMedia.length) }} de {{ filteredMedia.length }} elementos</span>
+            <span>Mostrando {{ Math.min(startIndex + 1, filteredMedia.length) }}-{{ Math.min(endIndex, filteredMedia.length) }} de {{ filteredMedia.length }} archivos</span>
           </div>
         </div>
       </div>
@@ -244,7 +244,7 @@
     <div v-if="showUploadModal" class="modal-overlay" @click="showUploadModal = false">
       <div class="modal" @click.stop>
         <div class="modal-header">
-          <h2>Subir Imágenes a {{ dataset.name }}</h2>
+          <h2>Subir datos a {{ dataset.name }}</h2>
           <button @click="showUploadModal = false" class="close-btn">&times;</button>
         </div>
         
@@ -389,7 +389,7 @@ export default {
       selectedImage: null,
       filterStatus: 'all',
       filterOptions: [
-        { value: 'all', label: 'Todos los elementos' },
+        { value: 'all', label: 'Todos los archivos' },
         { value: 'with-annotations', label: 'Con anotaciones' },
         { value: 'no-annotations', label: 'Sin anotaciones' }
       ],
@@ -1372,6 +1372,10 @@ export default {
   color: #6c757d;
 }
 
+.no-images .btn-primary {
+  margin-top: 20px;
+}
+
 .no-images i {
   font-size: 3rem; /* Icono más pequeño */
   margin-bottom: 15px; /* Margen reducido */
@@ -1412,7 +1416,7 @@ export default {
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 200px;
+  height: 201px; /* Aumenta el alto para más espacio */
 }
 
 .image-card:hover {
@@ -1428,7 +1432,7 @@ export default {
 }
 
 .image-info {
-  padding: 6px 8px;
+  padding: 6px 8px;/* Más espacio arriba y abajo */
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1438,7 +1442,7 @@ export default {
 
 .filename {
   font-weight: 500;
-  margin: 0 0 2px 0;
+  margin: 0 0 2px 0; /* Más margen inferior para que no se corte */
   font-size: 0.75rem;
   color: #333;
   white-space: nowrap;
@@ -1741,7 +1745,7 @@ export default {
 
 .sidebar-icon-videos {
   color: #26c6da;
-  background: rgba(142, 68, 173, 0.15);
+  background: rgba(38, 198, 218, 0.15);
 }
 .sidebar-icon-annotations {
   color: #f39c12;
@@ -1836,12 +1840,6 @@ export default {
   border-radius: 12px 12px 0 0;
 }
 
-.video-icon {
-  font-size: 2.5rem;  /* Reducido para ajustarse mejor */
-  opacity: 0.95;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
-}
-
 .video-duration {
   position: absolute;
   bottom: 10px;
@@ -1898,7 +1896,6 @@ export default {
 
 .frame-thumbnail {
   flex-shrink: 0;
-  width: 140px;
   cursor: pointer;
   border: 3px solid transparent;
   border-radius: 6px;
@@ -1919,14 +1916,14 @@ export default {
 
 .frame-thumbnail img {
   width: 100%;
-  height: 74px;
+  height: 65px;
   object-fit: contain;
   background-color: #000;
   display: block;
 }
 
 .frame-info {
-  padding: 0.35rem 0.4rem;
+  padding: 0.35rem 0.4rem;;
   display: flex;
   flex-direction: column;
   background: #34495e;
