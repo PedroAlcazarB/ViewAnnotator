@@ -9,7 +9,14 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     host: '0.0.0.0',
-    port: 8080
+    port: 8080,
+    proxy: {
+      '/api': {
+        target: 'http://backend:5000',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   }, 
   resolve: {
     alias: {

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 
-// Configuración de la API
-const API_BASE_URL = 'http://localhost:5000/api'
+// Configuración de la API - Usar rutas relativas para que funcionen a través del proxy de Nginx
+const API_BASE_URL = '/api'
 
 export const useAnnotationStore = defineStore('annotation', {
   state: () => ({

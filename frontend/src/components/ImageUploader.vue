@@ -24,24 +24,6 @@
         <p>Arrastra archivos aquí o haz clic para seleccionar</p>
         <p class="help-text">Admite imágenes, vídeos o ZIP con contenido</p>
       </div>
-      
-      <!-- Preview de imagen -->
-      <div v-else class="preview-container">
-        <div class="image-wrapper">
-          <img v-if="isImage" :src="displayUrl" alt="Preview" class="preview-image clickable-image" 
-               @click="handleImageClick" title="Haz clic para anotar">
-          <div class="click-overlay">
-            <span class="click-text">🖱️ Clic para anotar</span>
-          </div>
-        </div>
-        <video v-if="!isImage" controls class="preview-video">
-          <source :src="displayUrl" :type="fileType">
-        </video>
-        <button v-if="!props.currentImage" @click.stop="clearFile" class="clear-btn">×</button>
-        <button @click.stop="triggerFileInput" class="change-file-btn" :disabled="uploading">
-          {{ props.currentImage ? '+ Añadir más' : 'Cambiar imagen' }}
-        </button>
-      </div>
     </div>
     
     <!-- Mostrar errores del store -->
@@ -163,7 +145,7 @@ const displayUrl = computed(() => {
     return `data:${props.currentImage.content_type};base64,${props.currentImage.data}`
   }
   if (props.currentImage?._id) {
-    return `http://localhost:5000/api/images/${props.currentImage._id}/data`
+    return `/api/images/${props.currentImage._id}/data`
   }
   return previewUrl.value
 })
@@ -267,10 +249,10 @@ const uploadFiles = async (fileList) => {
     for (const file of fileList) {
       if (file.type === 'application/zip' || file.name.toLowerCase().endsWith('.zip')) {
         uploadMessage.value = `Descomprimiendo y procesando ${file.name}...`
-        await uploadFileWithProgress(file, 'http://localhost:5000/api/datasets/import-images', 'file', props.datasetId, uploadedImages)
+        await uploadFileWithProgress(file, '/api/datasets/import-images', 'file', props.datasetId, uploadedImages)
       } else if (file.type.startsWith('video/')) {
         uploadMessage.value = `Subiendo video ${file.name}...`
-        const result = await uploadFileWithProgress(file, 'http://localhost:5000/api/images', 'image', props.datasetId, uploadedImages)
+        const result = await uploadFileWithProgress(file, '/api/images', 'image', props.datasetId, uploadedImages)
         
         if (result && result.video && result.requires_processing) {
           uploading.value = false
@@ -280,7 +262,7 @@ const uploadFiles = async (fileList) => {
         }
       } else if (file.type.startsWith('image/')) {
         uploadMessage.value = `Subiendo ${file.name}...`
-        await uploadFileWithProgress(file, 'http://localhost:5000/api/images', 'image', props.datasetId, uploadedImages)
+        await uploadFileWithProgress(file, '/api/images', 'image', props.datasetId, uploadedImages)
         if (uploadedImages.length === 1) {
           files.value = [file]
           loadPreview(file)
@@ -318,7 +300,7 @@ const closeVideoModal = async () => {
   if (pendingVideo.value?._id) {
     try {
       const token = localStorage.getItem('auth_token')
-      await fetch(`http://localhost:5000/api/videos/${pendingVideo.value._id}`, {
+      await fetch(`/api/videos/${pendingVideo.value._id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -349,7 +331,7 @@ const processVideo = async () => {
     uploadMessage.value = `Extrayendo frames del video (${estimatedFrames.value} frames estimados)...`
     
     const token = localStorage.getItem('auth_token')
-    const response = await fetch('http://localhost:5000/api/videos/process', {
+    const response = await fetch('/api/videos/process', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

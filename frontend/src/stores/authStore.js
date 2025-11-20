@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 
-const API_BASE_URL = 'http://localhost:5000'
+// Usar rutas relativas para que funcionen a través del proxy de Nginx
+const API_BASE_URL = ''
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({

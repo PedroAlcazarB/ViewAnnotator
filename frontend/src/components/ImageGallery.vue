@@ -26,7 +26,7 @@
         @click="selectImage(index)"
       >
         <img 
-          :src="`http://localhost:5000/api/images/${image._id}/data`" 
+          :src="`/api/images/${image._id}/data`" 
           :alt="image.filename" 
           class="thumbnail"
         >

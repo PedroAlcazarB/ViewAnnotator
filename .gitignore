@@ -6,6 +6,12 @@ mongodb/logs/*
 !mongodb/data/.gitkeep
 !mongodb/logs/.gitkeep
 
+# Backend - Datasets e imágenes subidas
+backend/datasets/*
+backend/images/*
+!backend/datasets/.gitkeep
+!backend/images/.gitkeep
+
 # Node modules
 node_modules/
 npm-debug.log*
@@ -14,10 +20,12 @@ npm-debug.log*
 **/__pycache__/
 *.pyc
 *.pyo
+*.pyd
 
-# Environment variables
+# Environment variables (NUNCA versionar las claves secretas)
 .env
-*.env
+.env.local
+.env.*.local
 !.env.example
 !.env.sample
 !.env.template
@@ -25,7 +33,24 @@ npm-debug.log*
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
+*.log
+
+# Docker
+docker-compose.override.yml
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

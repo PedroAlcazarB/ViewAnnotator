@@ -31,4 +31,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 ENV FLASK_APP=app.py
-ENV FLASK_ENV=development
+# Crear directorios necesarios
+RUN mkdir -p /app/datasets /app/ai_models
+
+# Exponer puerto
+EXPOSE 5000
+
+# Comando de inicio para producción con Gunicorn
+# Nota: solo 1 worker para mantener el modelo en memoria por proceso
+# --access-logfile - : logs de acceso a stdout
+# --error-logfile - : logs de error a stderr  
+# --log-level info : nivel de log
+CMD ["gunicorn", "--workers=1", "--threads=2", "--timeout=120", "--bind=0.0.0.0:5000", "app:app"]

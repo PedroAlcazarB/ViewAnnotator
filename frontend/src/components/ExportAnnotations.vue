@@ -342,7 +342,7 @@ export default {
         const authStore = useAuthStore()
         
         const response = await fetch(
-          `http://localhost:5000/api/annotations/export/${this.datasetId}?${params}`,
+          `/api/annotations/export/${this.datasetId}?${params}`,
           {
             method: 'GET',
             headers: {
@@ -415,7 +415,7 @@ export default {
         })
 
         const response = await fetch(
-          `http://localhost:5000/api/annotations/export-stats/${this.datasetId}?${params}`,
+          `/api/annotations/export-stats/${this.datasetId}?${params}`,
           {
             method: 'GET'
           }

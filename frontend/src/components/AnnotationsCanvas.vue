@@ -34,8 +34,8 @@
               :config="{
                 x: toCanvasX(prediction.bbox[0]),
                 y: toCanvasY(prediction.bbox[1]),
-                width: prediction.bbox[2],
-                height: prediction.bbox[3],
+                width: toCanvasWidth(prediction.bbox[2]),
+                height: toCanvasHeight(prediction.bbox[3]),
                 fill: 'transparent',
                 stroke: '#ff6b6b',
                 strokeWidth: 2,
@@ -83,7 +83,7 @@
               >
                 <v-circle
                   :config="{
-                    x: toCanvasX(prediction.bbox[0]) + prediction.bbox[2] - 15,
+                    x: toCanvasX(prediction.bbox[0]) + toCanvasWidth(prediction.bbox[2]) - 15,
                     y: toCanvasY(prediction.bbox[1]) + 15,
                     radius: 12,
                     fill: predictionButtonHover === 'accept' ? '#27ae60' : '#2ecc71',
@@ -94,7 +94,7 @@
                 />
                 <v-text
                   :config="{
-                    x: toCanvasX(prediction.bbox[0]) + prediction.bbox[2] - 19,
+                    x: toCanvasX(prediction.bbox[0]) + toCanvasWidth(prediction.bbox[2]) - 19,
                     y: toCanvasY(prediction.bbox[1]) + 11,
                     text: '✓',
                     fontSize: 14,
@@ -113,7 +113,7 @@
               >
                 <v-circle
                   :config="{
-                    x: toCanvasX(prediction.bbox[0]) + prediction.bbox[2] - 15,
+                    x: toCanvasX(prediction.bbox[0]) + toCanvasWidth(prediction.bbox[2]) - 15,
                     y: toCanvasY(prediction.bbox[1]) + 40,
                     radius: 12,
                     fill: predictionButtonHover === 'reject' ? '#c0392b' : '#e74c3c',
@@ -124,7 +124,7 @@
                 />
                 <v-text
                   :config="{
-                    x: toCanvasX(prediction.bbox[0]) + prediction.bbox[2] - 19,
+                    x: toCanvasX(prediction.bbox[0]) + toCanvasWidth(prediction.bbox[2]) - 19,
                     y: toCanvasY(prediction.bbox[1]) + 36,
                     text: '✕',
                     fontSize: 14,
@@ -146,8 +146,8 @@
             :config="{
               x: toCanvasX(ann.bbox[0]),
               y: toCanvasY(ann.bbox[1]),
-              width: ann.bbox[2],
-              height: ann.bbox[3],
+              width: toCanvasWidth(ann.bbox[2]),
+              height: toCanvasHeight(ann.bbox[3]),
               fill: getCategoryColor(ann.category || ann.category_id) + '40',
               stroke: getCategoryColor(ann.category || ann.category_id),
               strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
@@ -177,7 +177,7 @@
             />
             <v-circle
               :config="{
-                x: toCanvasX(ann.bbox[0]) + ann.bbox[2],
+                x: toCanvasX(ann.bbox[0]) + toCanvasWidth(ann.bbox[2]),
                 y: toCanvasY(ann.bbox[1]),
                 radius: 6,
                 fill: '#ffffff',
@@ -191,7 +191,7 @@
             <v-circle
               :config="{
                 x: toCanvasX(ann.bbox[0]),
-                y: toCanvasY(ann.bbox[1]) + ann.bbox[3],
+                y: toCanvasY(ann.bbox[1]) + toCanvasHeight(ann.bbox[3]),
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -203,8 +203,8 @@
             />
             <v-circle
               :config="{
-                x: toCanvasX(ann.bbox[0]) + ann.bbox[2],
-                y: toCanvasY(ann.bbox[1]) + ann.bbox[3],
+                x: toCanvasX(ann.bbox[0]) + toCanvasWidth(ann.bbox[2]),
+                y: toCanvasY(ann.bbox[1]) + toCanvasHeight(ann.bbox[3]),
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -217,7 +217,7 @@
             <!-- Bordes - CON RESTRICCIONES DE MOVIMIENTO -->
             <v-circle
               :config="{
-                x: toCanvasX(ann.bbox[0]) + ann.bbox[2] / 2,
+                x: toCanvasX(ann.bbox[0] + ann.bbox[2] / 2),
                 y: toCanvasY(ann.bbox[1]),
                 radius: 6,
                 fill: '#ffffff',
@@ -225,7 +225,7 @@
                 strokeWidth: 2,
                 draggable: true,
                 dragBoundFunc: (pos) => ({
-                  x: toCanvasX(ann.bbox[0]) + ann.bbox[2] / 2,
+                  x: toCanvasX(ann.bbox[0] + ann.bbox[2] / 2),
                   y: pos.y
                 })
               }"
@@ -234,15 +234,15 @@
             />
             <v-circle
               :config="{
-                x: toCanvasX(ann.bbox[0]) + ann.bbox[2] / 2,
-                y: toCanvasY(ann.bbox[1]) + ann.bbox[3],
+                x: toCanvasX(ann.bbox[0] + ann.bbox[2] / 2),
+                y: toCanvasY(ann.bbox[1] + ann.bbox[3]),
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
                 draggable: true,
                 dragBoundFunc: (pos) => ({
-                  x: toCanvasX(ann.bbox[0]) + ann.bbox[2] / 2,
+                  x: toCanvasX(ann.bbox[0] + ann.bbox[2] / 2),
                   y: pos.y
                 })
               }"
@@ -252,7 +252,7 @@
             <v-circle
               :config="{
                 x: toCanvasX(ann.bbox[0]),
-                y: toCanvasY(ann.bbox[1]) + ann.bbox[3] / 2,
+                y: toCanvasY(ann.bbox[1] + ann.bbox[3] / 2),
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -260,7 +260,7 @@
                 draggable: true,
                 dragBoundFunc: (pos) => ({
                   x: pos.x,
-                  y: toCanvasY(ann.bbox[1]) + ann.bbox[3] / 2
+                  y: toCanvasY(ann.bbox[1] + ann.bbox[3] / 2)
                 })
               }"
               @dragmove="handleResizeDrag(ann, $event, 'w')"
@@ -268,8 +268,8 @@
             />
             <v-circle
               :config="{
-                x: toCanvasX(ann.bbox[0]) + ann.bbox[2],
-                y: toCanvasY(ann.bbox[1]) + ann.bbox[3] / 2,
+                x: toCanvasX(ann.bbox[0] + ann.bbox[2]),
+                y: toCanvasY(ann.bbox[1] + ann.bbox[3] / 2),
                 radius: 6,
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
@@ -277,7 +277,7 @@
                 draggable: true,
                 dragBoundFunc: (pos) => ({
                   x: pos.x,
-                  y: toCanvasY(ann.bbox[1]) + ann.bbox[3] / 2
+                  y: toCanvasY(ann.bbox[1] + ann.bbox[3] / 2)
                 })
               }"
               @dragmove="handleResizeDrag(ann, $event, 'e')"
@@ -468,21 +468,26 @@ const imageOffset = computed(() => ({
 }))
 
 const imageBounds = computed(() => ({
-  width: imageConfig.width || imageConfig.naturalWidth || 0,
-  height: imageConfig.height || imageConfig.naturalHeight || 0
+  width: imageConfig.naturalWidth || imageConfig.width || 0,
+  height: imageConfig.naturalHeight || imageConfig.height || 0
 }))
 
 const imageScale = computed(() => ({
-  x: imageConfig.naturalWidth ? imageConfig.width / imageConfig.naturalWidth : 1,
-  y: imageConfig.naturalHeight ? imageConfig.height / imageConfig.naturalHeight : 1
+  x: imageConfig.naturalWidth ? (imageConfig.width || imageConfig.naturalWidth) / imageConfig.naturalWidth : 1,
+  y: imageConfig.naturalHeight ? (imageConfig.height || imageConfig.naturalHeight) / imageConfig.naturalHeight : 1
 }))
 
-const toCanvasX = (value) => value + imageOffset.value.x
-const toCanvasY = (value) => value + imageOffset.value.y
+const scaleX = computed(() => imageScale.value.x || 1)
+const scaleY = computed(() => imageScale.value.y || 1)
+
+const toCanvasX = (value) => imageOffset.value.x + value * scaleX.value
+const toCanvasY = (value) => imageOffset.value.y + value * scaleY.value
+const toCanvasWidth = (value) => value * scaleX.value
+const toCanvasHeight = (value) => value * scaleY.value
 const toCanvasPoint = (point) => [toCanvasX(point[0]), toCanvasY(point[1])]
 
-const toImageX = (value) => value - imageOffset.value.x
-const toImageY = (value) => value - imageOffset.value.y
+const toImageX = (value) => (value - imageOffset.value.x) / scaleX.value
+const toImageY = (value) => (value - imageOffset.value.y) / scaleY.value
 
 const canvasBounds = computed(() => ({
   left: imageOffset.value.x,
@@ -1179,8 +1184,8 @@ async function eraseAtPosition(pos) {
       // Para rectángulos, verificar intersección con el círculo del borrador
       const rectLeft = toCanvasX(ann.bbox[0])
       const rectTop = toCanvasY(ann.bbox[1])
-      const rectRight = rectLeft + ann.bbox[2]
-      const rectBottom = rectTop + ann.bbox[3]
+      const rectRight = rectLeft + toCanvasWidth(ann.bbox[2])
+      const rectBottom = rectTop + toCanvasHeight(ann.bbox[3])
       
       // Encontrar el punto más cercano del rectángulo al centro del borrador
       const closestX = Math.max(rectLeft, Math.min(pos.x, rectRight))
@@ -1303,10 +1308,9 @@ function handleAnnotationDragEnd(annotation, event) {
     // El desplazamiento se aplica en el sistema de coordenadas del canvas.
     const deltaCanvasX = groupPos.x
     const deltaCanvasY = groupPos.y
-    
 
-    const deltaImageX = deltaCanvasX
-    const deltaImageY = deltaCanvasY
+    const deltaImageX = deltaCanvasX / scaleX.value
+    const deltaImageY = deltaCanvasY / scaleY.value
 
     // -----------------------------------------------------------------
     
@@ -1677,8 +1681,8 @@ function getImageMetrics() {
     displayHeight: imageConfig.height || 0,
     naturalWidth,
     naturalHeight,
-    scaleX: naturalWidth ? (imageConfig.width || 0) / naturalWidth : 1,
-    scaleY: naturalHeight ? (imageConfig.height || 0) / naturalHeight : 1
+    scaleX: scaleX.value,
+    scaleY: scaleY.value
   }
 }
 

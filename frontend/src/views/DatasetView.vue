@@ -86,6 +86,7 @@
             <i class="fas fa-file"></i>
             <p>No se encontraron archivos en el dataset</p>
             <button @click="showUploadModal = true" class="btn btn-primary">
+              <i class="fas fa-upload"></i>
               Subir archivos
             </button>
           </div>
@@ -693,6 +694,30 @@ export default {
         if (imageInList) {
           imageInList.annotation_count = updatedCount
         }
+        
+        // Si la imagen es un frame de un video, actualizar el contador del frame y del video
+        if (this.selectedVideo) {
+          // Actualizar el frame actual en la lista de videoFrames
+          const frameInList = this.videoFrames.find(f => (f._id || f.id) === currentId)
+          if (frameInList) {
+            frameInList.annotation_count = updatedCount
+          }
+          
+          const videoId = this.selectedVideo._id
+          const videoInList = this.videos.find(v => v._id === videoId)
+          
+          if (videoInList) {
+            // Calcular el total de anotaciones de todos los frames del video
+            const totalVideoAnnotations = this.videoFrames.reduce((total, frame) => {
+              const frameId = frame._id || frame.id
+              const count = frameId === currentId ? updatedCount : (frame.annotation_count || 0)
+              return total + count
+            }, 0)
+            
+            videoInList.annotation_count = totalVideoAnnotations
+            this.selectedVideo.annotation_count = totalVideoAnnotations
+          }
+        }
       }
     },
     
@@ -729,32 +754,6 @@ export default {
 
       try {
         const newAnnotations = Array.isArray(updateData.annotations) ? updateData.annotations : []
-        const canvasRef = this.$refs.annotationsCanvas
-
-        if (
-          this.selectedImage &&
-          newAnnotations.length > 0 &&
-          canvasRef &&
-          typeof canvasRef.getImageMetrics === 'function'
-        ) {
-          const metrics = canvasRef.getImageMetrics()
-          const scaleX = Number(metrics?.scaleX) || 0
-          const scaleY = Number(metrics?.scaleY) || 0
-
-          if (scaleX > 0 && scaleY > 0 && (scaleX !== 1 || scaleY !== 1)) {
-            const updates = newAnnotations
-              .filter(ann => ann && ann._id && Array.isArray(ann.bbox) && ann.bbox.length >= 4)
-              .map(ann => {
-                const [x, y, w, h] = ann.bbox.map(Number)
-                const scaledBBox = [x * scaleX, y * scaleY, w * scaleX, h * scaleY]
-                return this.store.updateAnnotation(ann._id, { bbox: scaledBBox })
-              })
-
-            if (updates.length) {
-              await Promise.allSettled(updates)
-            }
-          }
-        }
 
         if (this.selectedImage) {
           await this.store.loadAnnotations(this.selectedImage._id)
@@ -1374,9 +1373,21 @@ export default {
 
 .no-images .btn-primary {
   margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.no-images i {
+.no-images .btn-primary i {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.no-images .btn-secondary {
+  margin-top: 20px;
+}
+
+.no-images > i {
   font-size: 3rem; /* Icono más pequeño */
   margin-bottom: 15px; /* Margen reducido */
   color: #dee2e6;

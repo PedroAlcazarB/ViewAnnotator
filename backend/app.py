@@ -20,8 +20,16 @@ app = Flask(__name__)
 CORS(app)
 bcrypt = Bcrypt(app)
 
-# Clave secreta para JWT (en producción, usar variable de entorno)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY no encontrada...")
+
+if SECRET_KEY == 'dev-secret-key-change-in-production':
+    raise ValueError("¡PELIGRO! Está usando la SECRET_KEY de desarrollo...")
+app.config['SECRET_KEY'] = SECRET_KEY
+
+# Permitir archivos grandes (videos, ZIPs, imágenes) - 2GB máximo
+app.config['MAX_CONTENT_LENGTH'] = 2000 * 1024 * 1024  # 2GB
 
 # Configuración de MongoDB
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://mongo:27017/')
@@ -857,17 +865,17 @@ def calculate_bbox_overlap(bbox1, bbox2):
         print(f"Error al calcular IoU: {e}")
         return 0.0
 
-def check_annotation_duplicate_advanced(db, image_id, category_id, category_name, bbox, iou_threshold=0.7):
+def check_annotation_duplicate_advanced(db, image_id, category_id, category_name, bbox, iou_threshold=0.9):
     """
     Verificar duplicados usando IoU (Intersection over Union) más preciso
     
     Args:
         db: Conexión a la base de datos
-        image_id: ID de la imagen
+        image_id: ID de la imagen (string o ObjectId)
         category_id: ID de la categoría
         category_name: Nombre de la categoría  
         bbox: Bounding box [x, y, width, height]
-        iou_threshold: Umbral IoU para considerar duplicado (0.7 = 70% de solapamiento)
+        iou_threshold: Umbral IoU para considerar duplicado (0.90 = 90% de solapamiento)
     
     Returns:
         dict: {'is_duplicate': bool, 'existing_annotation': dict or None, 'iou': float}
@@ -876,37 +884,72 @@ def check_annotation_duplicate_advanced(db, image_id, category_id, category_name
         if not bbox or len(bbox) < 4:
             return {'is_duplicate': False, 'existing_annotation': None, 'iou': 0.0}
         
+        # Normalizar image_id: buscar tanto por string como por ObjectId
+        image_id_query = {'$or': []}
+        if isinstance(image_id, str):
+            image_id_query['$or'].append({'image_id': image_id})
+            try:
+                image_id_query['$or'].append({'image_id': ObjectId(image_id)})
+            except:
+                pass
+        else:
+            image_id_query['$or'].append({'image_id': image_id})
+            image_id_query['$or'].append({'image_id': str(image_id)})
+        
+        # Normalizar category_id: buscar tanto por string como por ObjectId
+        category_query = {'$or': []}
+        if category_name:
+            category_query['$or'].append({'category': category_name})
+        if category_id:
+            if isinstance(category_id, str):
+                category_query['$or'].append({'category_id': category_id})
+                try:
+                    category_query['$or'].append({'category_id': ObjectId(category_id)})
+                except:
+                    pass
+            else:
+                category_query['$or'].append({'category_id': category_id})
+                category_query['$or'].append({'category_id': str(category_id)})
+        
         # Buscar anotaciones existentes en la misma imagen con la misma categoría
         query = {
-            'image_id': image_id,
-            '$or': [
-                {'category_id': category_id},
-                {'category': category_name}
+            '$and': [
+                image_id_query,
+                category_query
             ]
         }
         
-        existing_annotations = db.annotations.find(query)
+        existing_annotations = list(db.annotations.find(query))
         
         for annotation in existing_annotations:
-            existing_bbox = annotation.get('bbox')
-            if not existing_bbox or len(existing_bbox) < 4:
-                continue
-                
-            # Calcular IoU
-            iou = calculate_bbox_overlap(bbox, existing_bbox)
+            # Primero verificar contra original_bbox si existe (para detectar duplicados de IA escalados)
+            original_bbox = annotation.get('original_bbox')
+            if original_bbox and len(original_bbox) >= 4:
+                iou_original = calculate_bbox_overlap(bbox, original_bbox)
+                if iou_original >= iou_threshold:
+                    return {
+                        'is_duplicate': True, 
+                        'existing_annotation': serialize_doc(annotation),
+                        'iou': iou_original
+                    }
             
-            # Si el IoU supera el umbral, es un duplicado
-            if iou >= iou_threshold:
-                return {
-                    'is_duplicate': True, 
-                    'existing_annotation': serialize_doc(annotation),
-                    'iou': iou
-                }
+            # Luego verificar contra bbox actual
+            existing_bbox = annotation.get('bbox')
+            if existing_bbox and len(existing_bbox) >= 4:
+                iou = calculate_bbox_overlap(bbox, existing_bbox)
+                if iou >= iou_threshold:
+                    return {
+                        'is_duplicate': True, 
+                        'existing_annotation': serialize_doc(annotation),
+                        'iou': iou
+                    }
         
         return {'is_duplicate': False, 'existing_annotation': None, 'iou': 0.0}
         
     except Exception as e:
+        import traceback
         print(f"Error al verificar duplicados avanzados: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
         return {'is_duplicate': False, 'existing_annotation': None, 'iou': 0.0}
 
 # ==================== ENDPOINTS PARA VIDEOS ====================
@@ -1336,7 +1379,7 @@ def create_annotation(current_user_id):
                 data.get('category_id'), 
                 data.get('category', 'default'), 
                 bbox,
-                iou_threshold=0.95  # 95% de solapamiento
+                iou_threshold=0.90  # 90% de solapamiento
             )
             
             if duplicate_result['is_duplicate']:
@@ -2838,7 +2881,7 @@ def process_coco_format(db, annotations_file, images_file, dataset_id, user_id):
             category_id, 
             category_doc.get('name', 'default') if category_doc else 'default', 
             bbox,
-            iou_threshold=0.8  # Umbral más estricto para importaciones
+            iou_threshold=0.9  # Umbral más estricto para importaciones
         )
         
         if duplicate_result['is_duplicate']:
@@ -2991,7 +3034,7 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id, user_id):
                             category_id, 
                             category_name, 
                             bbox,
-                            iou_threshold=0.8  # Umbral más estricto para importaciones
+                            iou_threshold=0.9  # Umbral más estricto para importaciones
                         )
                         
                         if duplicate_result['is_duplicate']:
@@ -4753,6 +4796,7 @@ def predict_image(current_user_id):
                             'category': category_name,
                             'category_id': category_id,
                             'bbox': bbox,
+                            'original_bbox': bbox,  # Guardar bbox original para detectar duplicados después de escalado
                             'area': bbox[2] * bbox[3],  # width * height
                             'stroke': '#00ff00',  # Color por defecto para predicciones
                             'strokeWidth': 2,
@@ -4772,7 +4816,7 @@ def predict_image(current_user_id):
                             category_id, 
                             category_name, 
                             bbox,
-                            iou_threshold=0.7  # 70% de solapamiento
+                            iou_threshold=0.90  # 90% de solapamiento
                         )
                         
                         if duplicate_result['is_duplicate']:

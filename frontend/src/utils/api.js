@@ -1,7 +1,8 @@
 // Helper para hacer peticiones autenticadas a la API
 import { useAuthStore } from '../stores/authStore'
 
-export const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:5000'
+// Usar rutas relativas para que funcionen a través del proxy de Nginx
+export const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || ''
 
 function resolveUrl(endpoint) {
   if (typeof endpoint !== 'string') {
