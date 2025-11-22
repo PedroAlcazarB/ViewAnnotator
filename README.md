@@ -26,6 +26,23 @@ Antes de comenzar, asegúrate de tener instalado:
 - **Docker Compose** (2.0+)
 - **Git**
 
+### Permisos de Docker
+
+Si al ejecutar los scripts obtienes un error de permisos de Docker, tienes dos opciones:
+
+**Opción 1: Añadir tu usuario al grupo docker (recomendado para uso frecuente)**
+```bash
+sudo usermod -aG docker $USER
+newgrp docker  # O reinicia sesión para aplicar cambios
+```
+
+**Opción 2: Ejecutar con sudo (para uso puntual)**
+```bash
+sudo ./start-production.sh
+```
+
+> **Nota**: Si añades tu usuario al grupo docker, no necesitarás usar `sudo` para los comandos de Docker. Sin embargo, esto otorga privilegios equivalentes a root para Docker. Elige la opción que mejor se adapte a tus necesidades de seguridad y frecuencia de uso.
+
 ## Instalación
 
 Sigue estos pasos para clonar el repositorio y configurar el entorno:
@@ -247,6 +264,5 @@ npm run dev
 - **Framework**: Vue 3
 - **Gestión de Estado**: Pinia
 - **Canvas y Anotación**: Konva.js
-- **Enrutamiento**: Vue Router
 - **Herramienta de Construcción**: Vite
 - **Servidor Web**: Nginx (producción)
