@@ -229,7 +229,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useAnnotationStore } from '../stores/annotationStore'
+import { useAnnotationStore } from '@/stores/annotationStore'
 
 // Store
 const store = useAnnotationStore()

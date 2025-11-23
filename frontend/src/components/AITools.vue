@@ -232,7 +232,7 @@
 </template>
 
 <script>
-import { useAnnotationStore } from '../stores/annotationStore'
+import { useAnnotationStore } from '@/stores/annotationStore'
 
 export default {
   name: 'AITools',

@@ -1,5 +1,5 @@
 // Helper para hacer peticiones autenticadas a la API
-import { useAuthStore } from '../stores/authStore'
+import { useAuthStore } from '@/stores/authStore'
 
 // Usar rutas relativas para que funcionen a través del proxy de Nginx
 export const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || ''

@@ -24,9 +24,9 @@
         <div class="welcome-content">
           <h2>Bienvenido a VISILAB Annotator</h2>
           <p class="welcome-user">
-            Hola, <strong>{{ authStore.user?.username || 'Usuario' }}</strong>!
+            Hola, <strong>{{ authStore.user?.username}}</strong>!
           </p>
-          <p>Anota imágenes con bounding boxes y exporta en formato COCO.</p>
+            <p>Anota imágenes y videos con bounding boxes, importa/exporta en múltiples formatos y utiliza modelos de IA para anotación automática.</p>
           <button @click="goToDatasets" class="btn btn-primary">
             Ir al anotador
           </button>

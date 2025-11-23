@@ -385,7 +385,7 @@
 
 <script setup>
 import { ref, reactive, watch, computed, onMounted, onUnmounted } from 'vue'
-import { useAnnotationStore } from '../stores/annotationStore'
+import { useAnnotationStore } from '@/stores/annotationStore'
 
 const store = useAnnotationStore()
 

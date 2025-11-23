@@ -82,7 +82,7 @@
 
 <script setup>
 import { computed, watch, onMounted } from 'vue'
-import { useAnnotationStore } from '../stores/annotationStore'
+import { useAnnotationStore } from '@/stores/annotationStore'
 
 const annotationStore = useAnnotationStore()
 

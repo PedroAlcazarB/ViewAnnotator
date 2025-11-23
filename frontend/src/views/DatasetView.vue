@@ -351,14 +351,14 @@
 </template>
 
 <script>
-import ImageUploader from '../components/ImageUploader.vue'
-import ImportAnnotations from '../components/ImportAnnotations.vue'
-import ExportAnnotations from '../components/ExportAnnotations.vue'
-import AnnotationsCanvas from '../components/AnnotationsCanvas.vue'
-import AnnotationToolbar from '../components/AnnotationToolbar.vue'
-import CategoryManager from '../components/CategoryManager.vue'
-import AITools from '../components/AITools.vue'
-import { useAnnotationStore } from '../stores/annotationStore'
+import ImageUploader from '@/components/ImageUploader.vue'
+import ImportAnnotations from '@/components/ImportAnnotations.vue'
+import ExportAnnotations from '@/components/ExportAnnotations.vue'
+import AnnotationsCanvas from '@/components/AnnotationsCanvas.vue'
+import AnnotationToolbar from '@/components/AnnotationToolbar.vue'
+import CategoryManager from '@/components/CategoryManager.vue'
+import AITools from '@/components/AITools.vue'
+import { useAnnotationStore } from '@/stores/annotationStore'
 
 export default {
   name: 'DatasetView',

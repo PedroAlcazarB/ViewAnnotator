@@ -87,7 +87,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useAnnotationStore } from '../stores/annotationStore'
+import { useAnnotationStore } from '@/stores/annotationStore'
 
 const store = useAnnotationStore()
 const emit = defineEmits(['files-uploaded', 'image-clicked'])
