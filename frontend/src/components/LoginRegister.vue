@@ -4,9 +4,9 @@
       <div class="auth-left">
         <h1 class="auth-title">VISILAB Annotator</h1>
         <p class="auth-description">
-          VISILAB Annotator es una herramienta de anotación de imágenes basada en web 
-          diseñada para versatilidad y eficiencia en el etiquetado de imágenes para crear 
-          datos de entrenamiento para localización de imágenes y detección de objetos.
+          VISILAB Annotator es una herramienta web para la anotación eficiente y versátil de datos visuales.
+          Permite crear conjuntos de entrenamiento destinados a tareas de localización y detección de objetos
+          en imágenes y videos.
         </p>
         <p class="auth-hint">Inicia sesión para crear datasets</p>
       </div>

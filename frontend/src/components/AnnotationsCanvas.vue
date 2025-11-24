@@ -757,34 +757,79 @@ function handleDoubleClick(e) {
   }
 }
 
+// Función para calcular el espacio disponible
+function getAvailableSpace() {
+  // Sidebar izquierdo: 380px, Sidebar derecho: 350px, padding: 80px total
+  const availableWidth = window.innerWidth - 380 - 350 - 80
+  const availableHeight = window.innerHeight - 120 // Header + padding
+  
+  const maxWidth = Math.max(availableWidth, 400) // Mínimo 400px
+  const maxHeight = Math.max(availableHeight, 300) // Mínimo 300px
+  
+  return { maxWidth, maxHeight }
+}
+
+// Función centralizada para calcular y aplicar el layout de la imagen
+function calculateLayout() {
+  if (!image.value) return
+  
+  const img = image.value
+  const { maxWidth, maxHeight } = getAvailableSpace()
+  
+  // Calcular escala para ajustar la imagen manteniendo proporción
+  const scaleX = maxWidth / img.naturalWidth
+  const scaleY = maxHeight / img.naturalHeight
+  const scale = Math.min(scaleX, scaleY, 1) // No agrandar más del tamaño original
+
+  const scaledWidth = img.naturalWidth * scale
+  const scaledHeight = img.naturalHeight * scale
+
+  // El canvas y la imagen tienen el mismo tamaño (la imagen llena completamente el canvas)
+  stageWidth.value = scaledWidth
+  stageHeight.value = scaledHeight
+  
+  // Actualizar la configuración de la imagen
+  Object.assign(imageConfig, {
+    image: img,
+    width: scaledWidth,
+    height: scaledHeight,
+    naturalWidth: img.naturalWidth,
+    naturalHeight: img.naturalHeight,
+    x: 0,
+    y: 0
+  })
+  
+  // Recrear datos de imagen con el nuevo tamaño
+  createImageData(img, scaledWidth, scaledHeight)
+  
+  // Asegurar que el pan respete los nuevos límites
+  applyStagePanLimits()
+}
+
+// Manejador de resize con debounce para optimizar rendimiento
+let resizeTimeout = null
+function handleResize() {
+  if (resizeTimeout) {
+    clearTimeout(resizeTimeout)
+  }
+  resizeTimeout = setTimeout(() => {
+    calculateLayout()
+  }, 150) // Debounce de 150ms
+}
+
 // Añadir event listeners
 onMounted(() => {
   document.addEventListener('keydown', handleKeyDown)
-  // Escucha cambios de tamaño para recalcular el área disponible
-  window.addEventListener('resize', updateStageSize)
-  // Inicializar tamaño del stage al tamaño disponible
-  updateStageSize()
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown)
-  window.removeEventListener('resize', updateStageSize)
+  window.removeEventListener('resize', handleResize)
+  if (resizeTimeout) {
+    clearTimeout(resizeTimeout)
+  }
 })
-
-function getAvailableStageSize() {
-  // Sidebar izquierdo: 380px, Sidebar derecho: 350px, padding: 80px total
-  const availableWidth = Math.max(window.innerWidth - 380 - 350 - 80, 400)
-  const availableHeight = Math.max(window.innerHeight - 120, 300)
-  return { availableWidth, availableHeight }
-}
-
-function updateStageSize() {
-  const { availableWidth, availableHeight } = getAvailableStageSize()
-  stageWidth.value = availableWidth
-  stageHeight.value = availableHeight
-  // Asegurar que el pan respete los nuevos límites
-  applyStagePanLimits()
-}
 
 watch(
   () => props.imageUrl,
@@ -795,53 +840,11 @@ watch(
     img.crossOrigin = 'anonymous' // Para evitar problemas de CORS
     img.onload = () => {
       console.log('Imagen cargada:', img.width, 'x', img.height)
-   
-      // Calcular el espacio disponible considerando los sidebars
-      // Sidebar izquierdo: 380px, Sidebar derecho: 350px, padding: 80px total
-      const availableWidth = window.innerWidth - 380 - 350 - 80
-      const availableHeight = window.innerHeight - 120 // Header + padding
       
-      // Calcular el tamaño máximo respetando el espacio disponible
-      const maxWidth = Math.max(availableWidth, 400) // Mínimo 400px
-      const maxHeight = Math.max(availableHeight, 300) // Mínimo 300px
-
-      // Calcular escala para ajustar la imagen manteniendo proporción
-      const scaleX = maxWidth / img.width
-      const scaleY = maxHeight / img.height
-      const scale = Math.min(scaleX, scaleY, 1) // No agrandar más del tamaño original
-
-      const scaledWidth = img.width * scale
-      const scaledHeight = img.height * scale
-
-
-  // 1. El canvas (stage) debe ocupar el espacio disponible (para permitir mover la imagen)
-  //    pero la imagen se mantiene centrada por defecto ("pegada" al centro como antes)
-  const canvasWidth = maxWidth
-  const canvasHeight = maxHeight
-
-  // 2. Centrar la imagen dentro del canvas por defecto. De esta forma la imagen se
-  // empezará "pegada" en el centro como antes, pero el usuario podrá hacer zoom y
-  // moverla dentro del espacio disponible
-  const imageX = Math.round((canvasWidth - scaledWidth) / 2)
-  const imageY = Math.round((canvasHeight - scaledHeight) / 2)
-
-  stageWidth.value = canvasWidth
-  stageHeight.value = canvasHeight
-      // Configurar la imagen para que llene el canvas
-      Object.assign(imageConfig, {
-        image: img,
-        width: scaledWidth,
-        height: scaledHeight,
-        naturalWidth: img.width,
-        naturalHeight: img.height,
-        x: imageX,
-        y: imageY
-      })     
-       
-    image.value = img
+      image.value = img
       
-      // Crear canvas oculto para obtener datos de imagen
-      createImageData(img, scaledWidth, scaledHeight)
+      // Aplicar el layout inicial
+      calculateLayout()
       
       // Centrar la vista en la imagen al cargar
       resetZoom()
@@ -859,7 +862,7 @@ function createImageData(img, width, height) {
   // Crear canvas oculto
   if (!hiddenCanvas.value) {
     hiddenCanvas.value = document.createElement('canvas')
-    hiddenCtx.value = hiddenCanvas.value.getContext('2d')
+    hiddenCtx.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
   }
   
   hiddenCanvas.value.width = width
