@@ -1,4 +1,4 @@
-# VISILAB Annotator
+# ViewAnnotator
 
 Una aplicación web moderna y completa para anotación de imágenes y videos, con soporte para múltiples formatos de exportación y herramientas de inteligencia artificial integradas.
 
@@ -49,10 +49,10 @@ Sigue estos pasos para clonar el repositorio y configurar el entorno:
 
 ```bash
 # Clona el repositorio
-git clone https://github.com/PedroAlcazarB/VISILAB-Annotator.git
+git clone https://github.com/PedroAlcazarB/ViewAnnotator.git
 
 # Accede a la raíz del proyecto
-cd VISILAB-Annotator
+cd ViewAnnotator
 
 # Verifica que tienes Docker y Docker Compose instalados
 docker --version
@@ -119,7 +119,7 @@ La aplicación estará disponible en **http://localhost:8080** con recarga autom
 ## Estructura del Proyecto
 
 ```
-VISILAB-Annotator/
+ViewAnnotator/
 ├── backend/                    # Backend Flask
 │   ├── app.py                 # Aplicación principal
 │   ├── requirements.txt       # Dependencias Python
