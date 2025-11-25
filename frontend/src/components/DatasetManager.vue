@@ -197,7 +197,7 @@ export default {
     },
     
     selectDataset(dataset) {
-      this.$emit('dataset-selected', dataset)
+      this.$router.push({ name: 'dataset', params: { id: dataset._id } })
     },
     
     refreshDatasets() {

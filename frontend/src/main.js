@@ -1,9 +1,10 @@
 import { createApp } from 'vue'
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
 import App from './App.vue'
 import VueKonva from 'vue-konva'
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, apiPatch, API_BASE_URL } from './utils/api'
 import { useAuthStore } from './stores/authStore'
+import router from './router'
 
 const app = createApp(App)
 app.use(VueKonva)
@@ -11,6 +12,9 @@ app.use(VueKonva)
 // Configuración de Pinia
 const pinia = createPinia()
 app.use(pinia)
+setActivePinia(pinia)
+
+app.use(router)
 
 const authStore = useAuthStore()
 
@@ -46,7 +50,7 @@ window.fetch = async (input, init = {}) => {
     if (response.status === 401) {
       console.error('[AUTH INTERCEPTOR] Sesión expirada (401) en:', url)
       authStore.logout()
-      window.location.href = '/'
+      router.push({ name: 'welcome' })
       throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.')
     }
 
@@ -75,4 +79,6 @@ window.$apiDelete = apiDelete
 window.apiFetch = apiFetch
 window.$apiPatch = apiPatch
 
-app.mount('#app')
+router.isReady().then(() => {
+  app.mount('#app')
+})

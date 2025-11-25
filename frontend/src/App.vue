@@ -1,178 +1,90 @@
 <template>
   <div id="app">
-    <!-- Pantalla de bienvenida -->
-    <div v-if="currentView === 'welcome'" class="welcome-screen">
-      <!-- Si NO está autenticado, mostrar Login/Register -->
-      <LoginRegister v-if="!authStore.isAuthenticated" />
-      
-      <!-- Si está autenticado, mostrar bienvenida -->
-      <template v-else>
-        <header class="welcome-header">
-          <h1>VISILAB Annotator</h1>
-          <nav>
-            <a href="#" class="nav-link active">Inicio</a>
-            <a href="#" class="nav-link" @click="goToDatasets">Anotador</a>
-            <a href="#" class="nav-link" @click="goToModels">Modelos</a>
-            <a href="#" class="nav-link" @click="goToCategories">Categorías</a>
-          </nav>
-          <div class="user-menu">
-            <span class="username">{{ authStore.user?.username }}</span>
-            <button @click="handleLogout" class="btn-logout">Cerrar sesión</button>
-          </div>
-        </header>
-        
-        <div class="welcome-content">
-          <h2>Bienvenido a VISILAB Annotator</h2>
-          <p class="welcome-user">
-            Hola, <strong>{{ authStore.user?.username}}</strong>!
-          </p>
-            <p>Anota imágenes y videos con bounding boxes, importa/exporta en múltiples formatos y utiliza modelos de IA para anotación automática.</p>
-          <button @click="goToDatasets" class="btn btn-primary">
-            Ir al anotador
-          </button>
-        </div>
-      </template>
+    <div v-if="!authStore.isInitialized" class="app-initializing"></div>
+    <div v-else-if="!authStore.isAuthenticated" class="welcome-screen">
+      <LoginRegister />
     </div>
-
-    <!-- Gestión de datasets -->
-    <div v-else-if="currentView === 'datasets'" class="datasets-screen">
-      <header class="app-header">
+    <div v-else :class="containerClass">
+      <header v-if="showHeader" :class="headerClass">
         <h1>VISILAB Annotator</h1>
         <nav>
-          <a href="#" class="nav-link" @click="goToWelcome">Inicio</a>
-          <a href="#" class="nav-link active">Anotador</a>
-          <a href="#" class="nav-link" @click="goToModels">Modelos</a>
-          <a href="#" class="nav-link" @click="goToCategories">Categorías</a>
+          <RouterLink
+            :to="{ name: 'welcome' }"
+            class="nav-link"
+            :class="{ active: route.name === 'welcome' }"
+          >
+            Inicio
+          </RouterLink>
+          <RouterLink
+            :to="{ name: 'datasets' }"
+            class="nav-link"
+            :class="{ active: route.name === 'datasets' }"
+          >
+            Anotador
+          </RouterLink>
+          <RouterLink
+            :to="{ name: 'models' }"
+            class="nav-link"
+            :class="{ active: route.name === 'models' }"
+          >
+            Modelos
+          </RouterLink>
+          <RouterLink
+            :to="{ name: 'categories' }"
+            class="nav-link"
+            :class="{ active: route.name === 'categories' }"
+          >
+            Categorías
+          </RouterLink>
         </nav>
         <div class="user-menu">
           <span class="username">{{ authStore.user?.username }}</span>
           <button @click="handleLogout" class="btn-logout">Cerrar sesión</button>
         </div>
       </header>
-      
-      <DatasetManager @dataset-selected="selectDataset" />
-    </div>
-
-    <!-- Gestión de modelos de IA -->
-    <div v-else-if="currentView === 'models'" class="models-screen">
-      <header class="app-header">
-        <h1>VISILAB Annotator</h1>
-        <nav>
-          <a href="#" class="nav-link" @click="goToWelcome">Inicio</a>
-          <a href="#" class="nav-link" @click="goToDatasets">Anotador</a>
-          <a href="#" class="nav-link active">Modelos</a>
-          <a href="#" class="nav-link" @click="goToCategories">Categorías</a>
-        </nav>
-        <div class="user-menu">
-          <span class="username">{{ authStore.user?.username }}</span>
-          <button @click="handleLogout" class="btn-logout">Cerrar sesión</button>
-        </div>
-      </header>
-      
-      <ModelsView />
-    </div>
-
-    <!-- Gestión de categorías -->
-    <div v-else-if="currentView === 'categories'" class="categories-screen">
-      <header class="app-header">
-        <h1>VISILAB Annotator</h1>
-        <nav>
-          <a href="#" class="nav-link" @click="goToWelcome">Inicio</a>
-          <a href="#" class="nav-link" @click="goToDatasets">Anotador</a>
-          <a href="#" class="nav-link" @click="goToModels">Modelos</a>
-          <a href="#" class="nav-link active">Categorías</a>
-        </nav>
-        <div class="user-menu">
-          <span class="username">{{ authStore.user?.username }}</span>
-          <button @click="handleLogout" class="btn-logout">Cerrar sesión</button>
-        </div>
-      </header>
-      
-      <CategoriesView />
-    </div>
-
-    <!-- Vista individual de dataset -->
-    <div v-else-if="currentView === 'dataset'" class="dataset-screen">
-      <DatasetView 
-        :dataset="selectedDataset" 
-        @go-back="goToDatasets"
-      />
+      <RouterView />
     </div>
   </div>
 </template>
 
-<script>
-import { useAuthStore } from './stores/authStore'
-import LoginRegister from './components/LoginRegister.vue'
-import DatasetManager from './components/DatasetManager.vue'
-import DatasetView from './views/DatasetView.vue'
-import ModelsView from './views/ModelsView.vue'
-import CategoriesView from './views/CategoriesView.vue'
+<script setup>
+import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
+import LoginRegister from '@/components/LoginRegister.vue'
 
-export default {
-  name: 'App',
-  components: {
-    LoginRegister,
-    DatasetManager,
-    DatasetView,
-    ModelsView,
-    CategoriesView
-  },
-  data() {
-    return {
-      currentView: 'welcome', // 'welcome', 'datasets', 'dataset', 'models', 'categories'
-      selectedDataset: null,
-      authStore: useAuthStore()
-    }
-  },
-  async mounted() {
-    // Inicializar autenticación al cargar la app
-    await this.authStore.init()
-  },
-  methods: {
-    checkAuth() {
-      if (!this.authStore.isAuthenticated) {
-        this.currentView = 'welcome'
-        return false
-      }
-      return true
-    },
-    
-    goToWelcome() {
-      this.currentView = 'welcome'
-      this.selectedDataset = null
-    },
-    
-    goToDatasets() {
-      if (!this.checkAuth()) return
-      this.currentView = 'datasets'
-      this.selectedDataset = null
-    },
-    
-    goToModels() {
-      if (!this.checkAuth()) return
-      this.currentView = 'models'
-      this.selectedDataset = null
-    },
-    
-    goToCategories() {
-      if (!this.checkAuth()) return
-      this.currentView = 'categories'
-      this.selectedDataset = null
-    },
-    
-    selectDataset(dataset) {
-      if (!this.checkAuth()) return
-      this.selectedDataset = dataset
-      this.currentView = 'dataset'
-    },
-    
-    handleLogout() {
-      this.authStore.logout()
-      this.currentView = 'welcome'
-      this.selectedDataset = null
-    }
+const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+
+onMounted(async () => {
+  await authStore.init()
+})
+
+const showHeader = computed(() => route.name !== 'dataset')
+
+const containerClass = computed(() => {
+  switch (route.name) {
+    case 'welcome':
+      return 'welcome-screen'
+    case 'datasets':
+      return 'datasets-screen'
+    case 'models':
+      return 'models-screen'
+    case 'categories':
+      return 'categories-screen'
+    case 'dataset':
+      return 'dataset-screen'
+    default:
+      return ''
   }
+})
+
+const headerClass = computed(() => (route.name === 'welcome' ? 'welcome-header' : 'app-header'))
+
+const handleLogout = () => {
+  authStore.logout()
+  router.push({ name: 'welcome' })
 }
 </script>
 
@@ -307,8 +219,13 @@ nav {
   max-width: 37.5rem;
 }
 
+.app-initializing {
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
 /* Estilos para pantallas con header */
-.datasets-screen, .dataset-screen {
+.datasets-screen, .dataset-screen, .models-screen, .categories-screen {
   min-height: 100vh;
   background: #f8fafc;
 }

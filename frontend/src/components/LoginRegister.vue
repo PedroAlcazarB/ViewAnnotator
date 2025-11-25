@@ -122,9 +122,11 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 const activeTab = ref('login')
 const loading = ref(false)
@@ -150,8 +152,7 @@ const handleLogin = async () => {
     const result = await authStore.login(loginForm.value.username, loginForm.value.password)
     
     if (result.success) {
-      // Redirigir después de login exitoso
-      window.location.reload() // Recargar para actualizar la app
+      router.push({ name: 'datasets' })
     } else {
       error.value = result.error
     }
@@ -191,8 +192,7 @@ const handleRegister = async () => {
     )
     
     if (result.success) {
-      // Redirigir después de registro exitoso
-      window.location.reload() // Recargar para actualizar la app
+      router.push({ name: 'datasets' })
     } else {
       error.value = result.error
     }

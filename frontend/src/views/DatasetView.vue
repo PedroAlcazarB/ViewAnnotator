@@ -1,5 +1,5 @@
 <template>
-  <div class="dataset-view">
+  <div v-if="dataset" class="dataset-view">
     <!-- Header del dataset -->
     <div class="dataset-header">
       <div class="header-left">
@@ -348,6 +348,12 @@
       </div>
     </div>
   </div>
+  <div v-else class="dataset-view dataset-view--loading">
+    <div class="dataset-loading">
+      <div class="spinner"></div>
+      <p>{{ datasetError || 'Cargando dataset...' }}</p>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -371,18 +377,14 @@ export default {
     CategoryManager,
     AITools
   },
-  props: {
-    dataset: {
-      type: Object,
-      required: true
-    }
-  },
-  setup(props) {
+  setup() {
     const store = useAnnotationStore()
     return { store }
   },
   data() {
     return {
+      dataset: null,
+      datasetError: null,
       loading: false,
       showUploadModal: false,
       showImportModal: false,
@@ -536,11 +538,18 @@ export default {
     }
   },
   async mounted() {
-    // Establecer contexto del dataset y cargar datos
-    this.store.setCurrentDataset(this.dataset)
-    await this.loadDatasetData()
-    await this.loadVideos()
+    await this.initializeDatasetView()
     document.addEventListener('click', this.handleClickOutside)
+  },
+  async beforeRouteUpdate(to, from, next) {
+    try {
+      this.resetViewState()
+      await this.initializeDatasetView(to.params.id)
+    } catch (error) {
+      console.error('Error al actualizar la vista del dataset:', error)
+    } finally {
+      next()
+    }
   },
   beforeUnmount() {
     // Limpiar contexto al salir
@@ -565,7 +574,75 @@ export default {
     }
   },
   methods: {
+    async initializeDatasetView(datasetId = this.$route.params.id) {
+      try {
+        await this.ensureDatasetLoaded(datasetId)
+        if (!this.dataset || !this.dataset._id) {
+          return
+        }
+
+        this.store.clearDatasetContext()
+        this.store.setCurrentDataset(this.dataset)
+        await this.loadDatasetData()
+        await this.loadVideos()
+      } catch (error) {
+        console.error('Error al inicializar la vista del dataset:', error)
+        if (!this.datasetError) {
+          this.datasetError = 'Error al cargar el dataset'
+        }
+      }
+    },
+
+    async ensureDatasetLoaded(datasetId) {
+      if (!datasetId) {
+        this.datasetError = 'Dataset no especificado'
+        return
+      }
+
+      if (this.dataset && this.dataset._id === datasetId) {
+        return
+      }
+
+      try {
+        const response = await this.$apiGet(`/api/datasets/${datasetId}`)
+        const dataset = response?.dataset || response
+
+        if (!dataset || !dataset._id) {
+          throw new Error('Respuesta inválida al cargar dataset')
+        }
+
+        this.dataset = dataset
+        this.datasetError = null
+      } catch (error) {
+        console.error('Error al cargar dataset:', error)
+        this.dataset = null
+        this.datasetError = 'No se pudo cargar el dataset'
+      }
+    },
+
+    resetViewState() {
+      this.dataset = null
+      this.datasetError = null
+      this.loading = false
+      this.showUploadModal = false
+      this.showImportModal = false
+      this.showExportModal = false
+      this.selectedImage = null
+      this.selectedVideo = null
+      this.videoFrames = []
+      this.currentFrameIndex = 0
+      this.filterStatus = 'all'
+      this.isFilterDropdownOpen = false
+      this.currentPage = 1
+      this.videos = []
+      this.videoThumbnails = {}
+      this.store.clearDatasetContext()
+    },
+
     async loadDatasetData() {
+      if (!this.dataset || !this.dataset._id) {
+        return
+      }
       try {
         this.loading = true
         await this.store.initialize(this.dataset._id)
@@ -618,8 +695,10 @@ export default {
       
       // Recargar imágenes y videos para actualizar la galería
       try {
-        await this.store.loadImages(this.dataset._id)
-        await this.loadVideos()
+        if (this.dataset && this.dataset._id) {
+          await this.store.loadImages(this.dataset._id)
+          await this.loadVideos()
+        }
       } catch (error) {
         console.error('Error reloading images after upload:', error)
       }
@@ -722,7 +801,7 @@ export default {
     },
     
     goBack() {
-      this.$emit('go-back')
+      this.$router.push({ name: 'datasets' })
     },
     
     goToPage(page) {
@@ -760,7 +839,7 @@ export default {
           this.handleAnnotationSaved()
         }
 
-        if (updateData.created_categories && updateData.created_categories.length > 0) {
+        if (updateData.created_categories && updateData.created_categories.length > 0 && this.dataset && this.dataset._id) {
           await this.store.loadCategories(this.dataset._id)
         }
 
@@ -834,6 +913,9 @@ export default {
     
     // Métodos para videos
     async loadVideos() {
+      if (!this.dataset || !this.dataset._id) {
+        return
+      }
       try {
         const data = await window.apiFetch(`/api/videos?dataset_id=${this.dataset._id}`)
         this.videos = data.videos || []
@@ -952,7 +1034,9 @@ export default {
         await this.loadVideos()
         
         // Recargar imágenes (se eliminaron los frames)
-        await this.store.loadImages(this.dataset._id)
+        if (this.dataset && this.dataset._id) {
+          await this.store.loadImages(this.dataset._id)
+        }
       } catch (error) {
         console.error('Error deleting video:', error)
         alert('Error al eliminar el video')
@@ -982,6 +1066,23 @@ export default {
   height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+.dataset-view--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.dataset-loading {
+  text-align: center;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
 }
 
 .dataset-header {

@@ -9,12 +9,17 @@ export const useAuthStore = defineStore('auth', {
     token: null,
     isAuthenticated: false,
     loading: false,
-    error: null
+    error: null,
+    isInitialized: false
   }),
 
   actions: {
     // Inicializar autenticación desde localStorage
     async init() {
+      if (this.isInitialized) {
+        return
+      }
+
       const token = localStorage.getItem('auth_token')
       const user = localStorage.getItem('auth_user')
       
@@ -26,6 +31,7 @@ export const useAuthStore = defineStore('auth', {
         // Verificar que el token sigue siendo válido
         await this.verifyToken()
       }
+      this.isInitialized = true
     },
 
     // Registrar nuevo usuario
@@ -56,6 +62,7 @@ export const useAuthStore = defineStore('auth', {
         this.token = data.token
         this.user = data.user
         this.isAuthenticated = true
+        this.isInitialized = true
 
         // Guardar en localStorage
         localStorage.setItem('auth_token', data.token)
@@ -97,6 +104,7 @@ export const useAuthStore = defineStore('auth', {
         this.token = data.token
         this.user = data.user
         this.isAuthenticated = true
+        this.isInitialized = true
 
         // Guardar en localStorage
         localStorage.setItem('auth_token', data.token)
@@ -147,6 +155,7 @@ export const useAuthStore = defineStore('auth', {
       this.token = null
       this.isAuthenticated = false
       this.error = null
+      this.isInitialized = true
 
       // Limpiar localStorage
       localStorage.removeItem('auth_token')
