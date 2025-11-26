@@ -295,6 +295,11 @@ const clearFile = () => {
   previewUrl.value = null
 }
 
+// Exponer el estado de subida para que el componente padre pueda verificar
+defineExpose({
+  isUploading: uploading
+})
+
 const closeVideoModal = async () => {
   // Si hay un video pendiente, eliminarlo del backend
   if (pendingVideo.value?._id) {

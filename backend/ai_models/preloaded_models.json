@@ -4,5 +4,11 @@
     "description": "Modelo YOLOv11n entrenado para detectar armas de fuego y clasificar entre pistola, ametralladora y sin arma",
     "model_file": "best.pt",
     "yaml_file": "Guns_dataset.yaml"
+  },
+  {
+    "name": "YOLO Large v3",
+    "description": "Modelo YOLO Large versión 3 en formato TorchScript",
+    "model_file": "YOLO_L_v3.torchscript",
+    "yaml_file": "classes.txt"
   }
 ]

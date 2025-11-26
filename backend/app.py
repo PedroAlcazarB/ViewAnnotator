@@ -214,7 +214,7 @@ def verify_token(current_user_id):
 
 # ==================== FUNCIONES AUXILIARES PARA PROCESAMIENTO DE IMÁGENES ====================
 
-def find_images_in_directory(directory_path, max_depth=3):
+def find_images_in_directory(directory_path, max_depth=5):
     """
     Buscar recursivamente todas las imágenes en un directorio y sus subcarpetas
     
@@ -228,9 +228,11 @@ def find_images_in_directory(directory_path, max_depth=3):
     supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif'}
     found_images = []
     
+    
     for root, dirs, files in os.walk(directory_path):
         # Calcular profundidad actual
         depth = root[len(directory_path):].count(os.sep)
+        
         if depth >= max_depth:
             dirs.clear()  # No buscar más profundo
             continue
@@ -240,6 +242,7 @@ def find_images_in_directory(directory_path, max_depth=3):
             file_ext = os.path.splitext(filename)[1].lower()
             if file_ext in supported_formats:
                 file_path = os.path.join(root, filename)
+                print(f"Procesando imagen: {filename} (extensión: {file_ext})")
                 
                 # Validar que es una imagen real
                 try:
@@ -253,10 +256,8 @@ def find_images_in_directory(directory_path, max_depth=3):
                         'file_path': file_path,
                         'filename': filename,
                         'relative_path': relative_path
-                    })
-                    
+                    })                    
                 except Exception as e:
-                    print(f"Archivo no válido ignorado: {filename} - {str(e)}")
                     continue
     
     return found_images
@@ -695,14 +696,40 @@ def get_image_data(image_id):
         if not image_doc:
             return jsonify({'error': 'Imagen no encontrada'}), 404
             
-        # Decodificar base64 y servir imagen
+        # Decodificar base64
         image_data = base64.b64decode(image_doc['data'])
+        content_type = image_doc.get('content_type', 'image/jpeg')
+        filename = image_doc["filename"]
+        
+        # Convertir TIFF a PNG para navegadores (TIFF no es soportado nativamente)
+        if content_type in ['image/tiff', 'image/tif'] or filename.lower().endswith(('.tif', '.tiff')):
+            try:
+                # Abrir imagen TIFF desde bytes
+                tiff_image = Image.open(io.BytesIO(image_data))
+                
+                # Convertir a RGB si es necesario (algunos TIFF pueden estar en otros modos)
+                if tiff_image.mode not in ('RGB', 'L'):
+                    tiff_image = tiff_image.convert('RGB')
+                
+                # Guardar como PNG en memoria
+                png_buffer = io.BytesIO()
+                tiff_image.save(png_buffer, format='PNG')
+                png_buffer.seek(0)
+                
+                image_data = png_buffer.getvalue()
+                content_type = 'image/png'
+                filename = filename.rsplit('.', 1)[0] + '.png'
+                
+            except Exception as e:
+                print(f"Error convirtiendo TIFF a PNG: {str(e)}")
+                # Si falla la conversión, intentar servir el original
+                pass
         
         from flask import Response
         return Response(
             image_data,
-            mimetype=image_doc.get('content_type', 'image/jpeg'),
-            headers={'Content-Disposition': f'inline; filename={image_doc["filename"]}'}
+            mimetype=content_type,
+            headers={'Content-Disposition': f'inline; filename={filename}'}
         )
         
     except Exception as e:
@@ -2791,7 +2818,7 @@ def process_coco_format(db, annotations_file, images_file, dataset_id, user_id):
             existing = db.categories.find_one({'name': cat_name, 'dataset_id': dataset_id})
             if existing:
                 category_map[cat['id']] = str(existing['_id'])
-                print(f"✅ Categoría existente: {cat_name}")
+                print(f"OK: Categoría existente: {cat_name}")
             else:
                 # Crear nueva categoría en el dataset actual
                 new_cat = {
@@ -2822,10 +2849,10 @@ def process_coco_format(db, annotations_file, images_file, dataset_id, user_id):
             if existing_img:
                 image_map[img['id']] = str(existing_img['_id'])
                 stats['images'] += 1
-                print(f"🖼️ Imagen encontrada en dataset: {filename}")
+                print(f"INFO: Imagen encontrada en dataset: {filename}")
             else:
                 stats['errors'].append(f"No se encontró la imagen {filename} en el dataset actual")
-                print(f"⚠️ Imagen no encontrada en dataset: {filename}")
+                print(f"AVISO: Imagen no encontrada en dataset: {filename}")
 
     # =====================================
     # IMPORTAR ANOTACIONES
@@ -2885,7 +2912,7 @@ def process_coco_format(db, annotations_file, images_file, dataset_id, user_id):
         )
         
         if duplicate_result['is_duplicate']:
-            print(f"⚠️ Anotación duplicada omitida (IoU: {duplicate_result['iou']:.3f})")
+            print(f"AVISO: Anotación duplicada omitida (IoU: {duplicate_result['iou']:.3f})")
             continue  # Saltar esta anotación
         
         db.annotations.insert_one(annotation_doc)
@@ -2901,7 +2928,7 @@ def process_coco_format(db, annotations_file, images_file, dataset_id, user_id):
             {'_id': ObjectId(category_id)},
             {'$set': {'annotation_count': total}}
         )
-        print(f"📊 Categoría {category_id}: {total} anotaciones totales")
+        print(f"INFO: Categoría {category_id}: {total} anotaciones totales")
 
     return stats
 
@@ -2917,35 +2944,52 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id, user_id):
         with zipfile.ZipFile(annotations_file, 'r') as zip_ref:
             zip_ref.extractall(temp_dir)
         
-        # Buscar archivo classes.txt
-        classes_file = os.path.join(temp_dir, 'classes.txt')
+        # Buscar archivo classes.txt (puede estar en la raíz o en subcarpetas)
+        classes_file = None
+        for root, dirs, files in os.walk(temp_dir):
+            if 'classes.txt' in files:
+                classes_file = os.path.join(root, 'classes.txt')
+                break
+        
         classes = []
         category_map = {}
         
-        if os.path.exists(classes_file):
-            with open(classes_file, 'r') as f:
-                classes = [line.strip() for line in f.readlines()]
-            
-            # Crear o encontrar categorías en el dataset actual
-            for idx, class_name in enumerate(classes):
-                existing = db.categories.find_one({
-                    'name': class_name,
-                    'dataset_id': dataset_id
-                })
+        if classes_file and os.path.exists(classes_file):
+            try:
+                with open(classes_file, 'r', encoding='utf-8') as f:
+                    classes = [line.strip() for line in f.readlines() if line.strip()]
                 
-                if existing:
-                    category_map[idx] = str(existing['_id'])
-                else:
-                    new_cat = {
+                print(f"INFO: Archivo classes.txt encontrado en {classes_file}")
+                print(f"INFO: Clases encontradas: {classes}")
+                
+                # Crear o encontrar categorías en el dataset actual
+                for idx, class_name in enumerate(classes):
+                    existing = db.categories.find_one({
                         'name': class_name,
-                        'color': f"#{hash(class_name) & 0xFFFFFF:06x}",
-                        'dataset_id': dataset_id,
-                        'created_date': datetime.utcnow(),
-                        'user_id': user_id  # Asociar categoría al usuario
-                    }
-                    result = db.categories.insert_one(new_cat)
-                    category_map[idx] = str(result.inserted_id)
-                    stats['categories'] += 1
+                        'dataset_id': dataset_id
+                    })
+                    
+                    if existing:
+                        category_map[idx] = str(existing['_id'])
+                        print(f"OK: Categoría existente: {class_name} (idx={idx})")
+                    else:
+                        new_cat = {
+                            'name': class_name,
+                            'color': f"#{hash(class_name) & 0xFFFFFF:06x}",
+                            'dataset_id': dataset_id,
+                            'created_date': datetime.utcnow(),
+                            'user_id': user_id  # Asociar categoría al usuario
+                        }
+                        result = db.categories.insert_one(new_cat)
+                        category_map[idx] = str(result.inserted_id)
+                        stats['categories'] += 1
+                        print(f"OK: Categoría creada: {class_name} (idx={idx})")
+            except Exception as e:
+                print(f"ERROR: Error leyendo classes.txt: {e}")
+                return {'images': 0, 'annotations': 0, 'categories': 0, 'errors': [f'Error leyendo classes.txt: {str(e)}']}
+        else:
+            print("ERROR: No se encontró classes.txt en el archivo ZIP")
+            return {'images': 0, 'annotations': 0, 'categories': 0, 'errors': ['Archivo classes.txt no encontrado en el ZIP']}
         
         # Procesar archivos .txt de anotaciones
         # Buscar carpeta labels/ o usar la raíz
@@ -2953,14 +2997,17 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id, user_id):
         if not os.path.exists(labels_dir):
             labels_dir = temp_dir
         
-        # Listar archivos de anotaciones
-        if os.path.isdir(labels_dir):
-            annotation_files = [f for f in os.listdir(labels_dir) 
-                              if f.endswith('.txt') and f != 'classes.txt']
-        else:
-            annotation_files = []
+        # Buscar archivos .txt recursivamente en todas las subcarpetas
+        annotation_files_with_paths = []
+        for root, dirs, files in os.walk(labels_dir):
+            for filename in files:
+                if filename.endswith('.txt') and filename != 'classes.txt':
+                    full_path = os.path.join(root, filename)
+                    annotation_files_with_paths.append((filename, full_path, root))
         
-        for filename in annotation_files:
+        print(f"INFO: Encontrados {len(annotation_files_with_paths)} archivos de anotaciones")
+        
+        for filename, full_path, parent_dir in annotation_files_with_paths:
             # Buscar imagen correspondiente en el dataset actual
             image_name = filename.replace('.txt', '')
             # Intentar con diferentes extensiones
@@ -2976,7 +3023,7 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id, user_id):
                     break
             
             if not existing_img:
-                stats['errors'].append(f"Imagen no encontrada en el dataset para: {filename}")
+                print(f"AVISO: Imagen no encontrada para anotaciones: {filename} - Ignorando")
                 continue
             
             image_id = str(existing_img['_id'])
@@ -2984,18 +3031,45 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id, user_id):
             image_height = existing_img['height']
             stats['images'] += 1
             
-            # Leer anotaciones YOLO
-            with open(os.path.join(labels_dir, filename), 'r') as f:
-                for line in f:
+            # Usar la ruta completa del archivo que ya tenemos
+            annotation_path = full_path
+            
+            # Verificar si el archivo existe y no está vacío (redundante pero por seguridad)
+            if not os.path.exists(annotation_path):
+                print(f"AVISO: Archivo de anotaciones no encontrado: {filename} - Imagen sin anotaciones")
+                continue
+            
+            if os.path.getsize(annotation_path) == 0:
+                print(f"AVISO: Archivo de anotaciones vacío: {filename} - Imagen sin anotaciones")
+                continue
+            
+            try:
+                with open(annotation_path, 'r') as f:
+                    lines = f.readlines()
+                    
+                if not lines or all(not line.strip() for line in lines):
+                    print(f"AVISO: Archivo de anotaciones sin contenido válido: {filename} - Imagen sin anotaciones")
+                    continue
+                
+                for line in lines:
                     parts = line.strip().split()
                     if len(parts) < 5:
                         continue
                     
-                    class_id = int(parts[0])
-                    center_x = float(parts[1])
-                    center_y = float(parts[2])
-                    width = float(parts[3])
-                    height = float(parts[4])
+                    try:
+                        class_id = int(parts[0])
+                        center_x = float(parts[1])
+                        center_y = float(parts[2])
+                        width = float(parts[3])
+                        height = float(parts[4])
+                    except (ValueError, IndexError) as parse_error:
+                        print(f"AVISO: Error parseando línea en {filename}: {line.strip()} - Ignorando")
+                        continue
+                    
+                    # Validar que las coordenadas estén en rango válido
+                    if not (0 <= center_x <= 1 and 0 <= center_y <= 1 and 0 <= width <= 1 and 0 <= height <= 1):
+                        print(f"AVISO: Coordenadas fuera de rango en {filename}: {line.strip()} - Ignorando")
+                        continue
                     
                     # Convertir coordenadas normalizadas a absolutas
                     abs_center_x = center_x * image_width
@@ -3011,9 +3085,16 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id, user_id):
                         abs_height
                     ]
                     
+                    # Obtener category_id del mapeo
+                    category_id = category_map.get(class_id)
+                    
+                    if not category_id:
+                        print(f"AVISO: No se encontró categoría para class_id={class_id} en {filename} - Ignorando anotación")
+                        continue
+                    
                     annotation_doc = {
                         'image_id': image_id,
-                        'category_id': category_map.get(class_id),
+                        'category_id': category_id,
                         'bbox': bbox,
                         'type': 'bbox',
                         'area': abs_width * abs_height,
@@ -3023,7 +3104,6 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id, user_id):
                     }
                     
                     # Verificar duplicados antes de crear la anotación
-                    category_id = category_map.get(class_id)
                     if category_id:
                         category_doc = db.categories.find_one({'_id': ObjectId(category_id)})
                         category_name = category_doc.get('name', 'default') if category_doc else 'default'
@@ -3038,11 +3118,14 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id, user_id):
                         )
                         
                         if duplicate_result['is_duplicate']:
-                            print(f"⚠️ Anotación YOLO duplicada omitida (IoU: {duplicate_result['iou']:.3f})")
+                            print(f"AVISO: Anotación YOLO duplicada omitida (IoU: {duplicate_result['iou']:.3f})")
                             continue  # Saltar esta anotación
                     
                     db.annotations.insert_one(annotation_doc)
                     stats['annotations'] += 1
+            except Exception as read_error:
+                print(f"AVISO: Error leyendo archivo {filename}: {read_error} - Ignorando")
+                continue
     
     return stats
 
@@ -3075,9 +3158,23 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id, user_id
         for xml_path in xml_files:
             filename = os.path.basename(xml_path)
             
+            # Verificar si el archivo existe y no está vacío
+            if not os.path.exists(xml_path):
+                print(f"AVISO: Archivo XML no encontrado: {filename} - Ignorando")
+                continue
+            
+            if os.path.getsize(xml_path) == 0:
+                print(f"AVISO: Archivo XML vacío: {filename} - Ignorando")
+                continue
+            
             try:
                 tree = ET.parse(xml_path)
                 root = tree.getroot()
+                
+                # Verificar que el XML tenga estructura válida
+                if root is None:
+                    print(f"AVISO: XML sin estructura válida: {filename} - Ignorando")
+                    continue
                 
                 # Obtener nombre de la imagen
                 image_filename = root.find('filename').text if root.find('filename') is not None else filename.replace('.xml', '.jpg')
@@ -3089,7 +3186,7 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id, user_id
                     'dataset_id': dataset_id
                 })
                 if not existing_img:
-                    stats['errors'].append(f"Imagen no encontrada en el dataset para: {image_filename}")
+                    print(f"AVISO: Imagen no encontrada para anotaciones: {image_filename} - Ignorando")
                     continue
                 
                 image_id = str(existing_img['_id'])
@@ -3097,8 +3194,19 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id, user_id
                 print(f"  ✓ Imagen encontrada: {image_filename}")
                 
                 # Procesar cada objeto anotado
-                for obj in root.findall('object'):
-                    name = obj.find('name').text
+                objects = root.findall('object')
+                
+                if not objects:
+                    print(f"AVISO: XML sin objetos anotados: {image_filename} - Imagen sin anotaciones")
+                    continue
+                
+                for obj in objects:
+                    name_elem = obj.find('name')
+                    if name_elem is None or not name_elem.text:
+                        print(f"AVISO: Objeto sin nombre en {image_filename} - Ignorando objeto")
+                        continue
+                    
+                    name = name_elem.text
                     
                     # Crear o encontrar categoría en el dataset actual
                     if name not in category_map:
@@ -3124,10 +3232,23 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id, user_id
                     
                     # Obtener coordenadas del bounding box
                     bbox_elem = obj.find('bndbox')
-                    xmin = float(bbox_elem.find('xmin').text)
-                    ymin = float(bbox_elem.find('ymin').text)
-                    xmax = float(bbox_elem.find('xmax').text)
-                    ymax = float(bbox_elem.find('ymax').text)
+                    if bbox_elem is None:
+                        print(f"AVISO: Objeto sin bounding box en {image_filename} - Ignorando objeto")
+                        continue
+                    
+                    try:
+                        xmin = float(bbox_elem.find('xmin').text)
+                        ymin = float(bbox_elem.find('ymin').text)
+                        xmax = float(bbox_elem.find('xmax').text)
+                        ymax = float(bbox_elem.find('ymax').text)
+                    except (AttributeError, ValueError, TypeError) as bbox_error:
+                        print(f"AVISO: Error parseando coordenadas en {image_filename}: {bbox_error} - Ignorando objeto")
+                        continue
+                    
+                    # Validar que las coordenadas sean coherentes
+                    if xmin >= xmax or ymin >= ymax:
+                        print(f"AVISO: Coordenadas inválidas en {image_filename}: xmin={xmin}, xmax={xmax}, ymin={ymin}, ymax={ymax} - Ignorando objeto")
+                        continue
                     
                     # Convertir a formato [x, y, width, height]
                     bbox = [xmin, ymin, xmax - xmin, ymax - ymin]
@@ -3154,7 +3275,7 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id, user_id
                     )
                     
                     if duplicate_result['is_duplicate']:
-                        print(f"⚠️ Anotación Pascal duplicada omitida (IoU: {duplicate_result['iou']:.3f})")
+                        print(f"AVISO: Anotación Pascal duplicada omitida (IoU: {duplicate_result['iou']:.3f})")
                         continue  # Saltar esta anotación
                     
                     db.annotations.insert_one(annotation_doc)
@@ -4146,15 +4267,21 @@ def ensure_preloaded_models():
             categories = model_config.get('categories', [])
             if not categories and yaml_path:
                 try:
-                    with open(yaml_path, 'r', encoding='utf-8') as yf:
-                        yaml_data = yaml.safe_load(yf)
-                        if 'names' in yaml_data:
-                            if isinstance(yaml_data['names'], dict):
-                                categories = list(yaml_data['names'].values())
-                            else:
-                                categories = yaml_data['names']
+                    # Si es un archivo .txt, leer línea por línea
+                    if yaml_path.endswith('.txt'):
+                        with open(yaml_path, 'r', encoding='utf-8') as tf:
+                            categories = [line.strip() for line in tf.readlines() if line.strip()]
+                    # Si es un archivo .yaml, usar yaml.safe_load
+                    else:
+                        with open(yaml_path, 'r', encoding='utf-8') as yf:
+                            yaml_data = yaml.safe_load(yf)
+                            if 'names' in yaml_data:
+                                if isinstance(yaml_data['names'], dict):
+                                    categories = list(yaml_data['names'].values())
+                                else:
+                                    categories = yaml_data['names']
                 except Exception as e:
-                    print(f"Error leyendo YAML para {name}: {e}")
+                    print(f"Error leyendo archivo de clases para {name}: {e}")
             
             if existing_model:
                 # Actualizar modelo existente para marcarlo como precargado
@@ -4426,7 +4553,20 @@ def load_saved_model(current_user_id):
         if not os.path.exists(model_path):
             return jsonify({'error': 'Archivo de modelo no encontrado'}), 404
         
-        loaded_model = YOLO(model_path)
+        # Detectar si es un archivo TorchScript
+        if model_path.endswith('.torchscript'):
+            import torch
+            try:
+                # Cargar en GPU si está disponible, sino en CPU
+                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                loaded_model = torch.jit.load(model_path, map_location=device)
+                loaded_model.eval()  # Poner en modo evaluación
+                print(f"Modelo TorchScript cargado en: {device}")
+            except Exception as e:
+                return jsonify({'error': f'Error al cargar modelo TorchScript: {str(e)}'}), 500
+        else:
+            loaded_model = YOLO(model_path)
+        
         model_name = model_doc['name']
         model_categories = model_doc['categories']
         loaded_model_id = str(model_doc['_id'])
@@ -4744,17 +4884,191 @@ def predict_image(current_user_id):
         # Realizar predicción
         try:
             print(f"Realizando predicción con confianza: {confidence}")
-            results = loaded_model(image, conf=confidence)
-            print(f"Predicción completada, {len(results)} resultados obtenidos")
+            
+            # Verificar si es un modelo TorchScript
+            import torch
+            is_torchscript = isinstance(loaded_model, torch.jit.ScriptModule)
+            
+            if is_torchscript:
+                # Procesar modelo TorchScript
+                import torchvision.transforms as transforms
+                
+                # Preparar imagen para TorchScript
+                transform = transforms.Compose([
+                    transforms.Resize((640, 640)),
+                    transforms.ToTensor(),
+                ])
+                
+                img_tensor = transform(image).unsqueeze(0)  # Añadir dimensión de batch
+                
+                # Mover tensor al mismo dispositivo que el modelo
+                device = next(loaded_model.parameters()).device if hasattr(loaded_model, 'parameters') else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                img_tensor = img_tensor.to(device)
+                
+                print(f"Realizando predicción en dispositivo: {device}")
+                
+                # Realizar predicción
+                with torch.no_grad():
+                    predictions = loaded_model(img_tensor)
+                
+                # TorchScript YOLO devuelve [batch, detections, 6] donde 6 = [x1, y1, x2, y2, conf, class]
+                # Necesitamos procesar esto manualmente
+                print(f"Predicción TorchScript completada, shape: {predictions.shape if hasattr(predictions, 'shape') else 'N/A'}")
+                
+            else:
+                # Modelo Ultralytics YOLO normal
+                results = loaded_model(image, conf=confidence)
+                print(f"Predicción completada, {len(results)} resultados obtenidos")
+                
         except Exception as e:
             print(f"Error durante la predicción: {e}")
+            import traceback
+            traceback.print_exc()
             return jsonify({'error': f'Error durante la predicción: {str(e)}'}), 500
         
         # Procesar resultados y guardar como anotaciones
         detections = []
         created_annotations = []
         
-        if len(results) > 0:
+        if is_torchscript:
+            # Procesar resultados de TorchScript
+            print(f"Procesando resultados TorchScript")
+            
+            # El formato puede variar según el modelo, intentar procesar
+            try:
+                if isinstance(predictions, torch.Tensor):
+                    # Formato típico de YOLO v8 TorchScript: [batch, num_classes + 4, num_anchors]
+                    # Ejemplo: [1, 20, 8400] donde 20 = 16 clases + 4 coordenadas bbox
+                    pred = predictions[0]  # Primera imagen del batch [num_classes + 4, num_anchors]
+                    
+                    # Transponer para tener [num_anchors, num_classes + 4]
+                    pred = pred.transpose(0, 1)  # Ahora es [8400, 20]
+                    
+                    # Las primeras 4 columnas son las coordenadas (x_center, y_center, width, height)
+                    # Las siguientes columnas son las probabilidades de clase
+                    boxes_xywh = pred[:, :4]  # [num_anchors, 4]
+                    class_probs = pred[:, 4:]  # [num_anchors, num_classes]
+                    
+                    # Obtener la clase y confianza máxima para cada detección
+                    max_probs, class_ids = torch.max(class_probs, dim=1)
+                    
+                    # Filtrar por umbral de confianza
+                    mask = max_probs >= confidence
+                    filtered_boxes = boxes_xywh[mask]
+                    filtered_scores = max_probs[mask]
+                    filtered_classes = class_ids[mask]
+                    
+                    print(f"Después de filtrar por confianza {confidence}: {len(filtered_boxes)} detecciones")
+                    
+                    if len(filtered_boxes) > 0:
+                        # Convertir de xywh (centro) a xyxy (esquinas)
+                        boxes_xyxy = torch.zeros_like(filtered_boxes)
+                        boxes_xyxy[:, 0] = filtered_boxes[:, 0] - filtered_boxes[:, 2] / 2  # x1
+                        boxes_xyxy[:, 1] = filtered_boxes[:, 1] - filtered_boxes[:, 3] / 2  # y1
+                        boxes_xyxy[:, 2] = filtered_boxes[:, 0] + filtered_boxes[:, 2] / 2  # x2
+                        boxes_xyxy[:, 3] = filtered_boxes[:, 1] + filtered_boxes[:, 3] / 2  # y2
+                        
+                        # Aplicar NMS (Non-Maximum Suppression)
+                        try:
+                            from torchvision.ops import nms
+                            keep_indices = nms(boxes_xyxy, filtered_scores, iou_threshold=0.45)
+                            
+                            boxes_xyxy = boxes_xyxy[keep_indices]
+                            filtered_scores = filtered_scores[keep_indices]
+                            filtered_classes = filtered_classes[keep_indices]
+                            
+                            print(f"Después de NMS: {len(boxes_xyxy)} detecciones")
+                        except Exception as nms_error:
+                            print(f"Error aplicando NMS: {nms_error}, continuando sin NMS")
+                        
+                        # Escalar de vuelta al tamaño original de la imagen
+                        img_w, img_h = image.size
+                        
+                        for i in range(len(boxes_xyxy)):
+                            box = boxes_xyxy[i].cpu()
+                            conf = float(filtered_scores[i].cpu())
+                            cls = int(filtered_classes[i].cpu())
+                            
+                            # Escalar coordenadas desde 640x640 al tamaño original
+                            x1 = float(box[0]) * img_w / 640
+                            y1 = float(box[1]) * img_h / 640
+                            x2 = float(box[2]) * img_w / 640
+                            y2 = float(box[3]) * img_h / 640
+                            
+                            # Convertir a formato [x, y, width, height]
+                            bbox = [x1, y1, x2 - x1, y2 - y1]
+                            
+                            # Validar que la clase esté en el rango válido
+                            if cls >= len(model_categories):
+                                print(f"Clase {cls} fuera de rango (total: {len(model_categories)}), saltando")
+                                continue
+                            
+                            # Obtener el ID de categoría correspondiente
+                            category_id = category_mapping.get(cls)
+                            category_name = model_categories[cls]
+                            
+                            if not category_id:
+                                print(f"No se encontró categoría para clase {cls} ({category_name}), saltando detección")
+                                continue
+                            
+                            detection = {
+                                'bbox': bbox,
+                                'confidence': conf,
+                                'class': cls,
+                                'category_id': category_id,
+                                'category_name': category_name
+                            }
+                            
+                            # Crear anotación en la base de datos
+                            annotation_doc = {
+                                'image_id': image_id,
+                                'type': 'bbox',
+                                'category': category_name,
+                                'category_id': category_id,
+                                'bbox': bbox,
+                                'original_bbox': bbox,
+                                'area': bbox[2] * bbox[3],
+                                'stroke': '#00ff00',
+                                'strokeWidth': 2,
+                                'fill': 'rgba(0,255,0,0.2)',
+                                'confidence': conf,
+                                'source': 'ai_prediction',
+                                'model_name': model_name,
+                                'created_date': datetime.utcnow(),
+                                'modified_date': datetime.utcnow(),
+                                'user_id': current_user_id
+                            }
+                            
+                            # Verificar duplicados
+                            duplicate_result = check_annotation_duplicate_advanced(
+                                db, image_id, category_id, category_name, bbox, iou_threshold=0.90
+                            )
+                            
+                            if duplicate_result['is_duplicate']:
+                                print(f"Detección {i}: duplicado (IoU: {duplicate_result['iou']:.3f}), saltando...")
+                                detection['is_duplicate'] = True
+                                detection['existing_annotation_id'] = duplicate_result['existing_annotation']['_id']
+                                detections.append(detection)
+                                continue
+                            
+                            # Insertar anotación
+                            annotation_result = db.annotations.insert_one(annotation_doc)
+                            annotation_doc['_id'] = str(annotation_result.inserted_id)
+                            created_annotations.append(serialize_doc(annotation_doc))
+                            detection['is_duplicate'] = False
+                            detections.append(detection)
+                            
+                            print(f"Detección {i}: clase={cls} ({category_name}), confianza={conf:.3f}, bbox={[round(b, 2) for b in bbox]}")
+                            
+                print(f"Encontradas {len(detections)} detecciones TorchScript")
+                
+            except Exception as e:
+                print(f"Error procesando resultados TorchScript: {e}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({'error': f'Error procesando resultados: {str(e)}'}), 500
+                
+        elif len(results) > 0:
             result = results[0]  # Tomar el primer resultado
             print(f"Procesando resultado: {type(result)}")
             

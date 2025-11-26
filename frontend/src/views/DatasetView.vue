@@ -242,15 +242,16 @@
     </div>
 
     <!-- Modal de subida de imágenes -->
-    <div v-if="showUploadModal" class="modal-overlay" @click="showUploadModal = false">
+    <div v-if="showUploadModal" class="modal-overlay" @click="closeUploadModal">
       <div class="modal" @click.stop>
         <div class="modal-header">
           <h2>Subir datos a {{ dataset.name }}</h2>
-          <button @click="showUploadModal = false" class="close-btn">&times;</button>
+          <button @click="closeUploadModal" class="close-btn">&times;</button>
         </div>
         
         <div class="modal-body">
           <ImageUploader 
+            ref="imageUploader"
             :dataset-id="dataset._id"
             @files-uploaded="handleImagesUploaded"
           />
@@ -618,6 +619,17 @@ export default {
         this.dataset = null
         this.datasetError = 'No se pudo cargar el dataset'
       }
+    },
+
+    closeUploadModal() {
+      // Verificar si hay una subida en progreso
+      if (this.$refs.imageUploader?.isUploading) {
+        // Mostrar alerta al usuario
+        alert('Hay una subida en progreso. Por favor, espera a que termine.')
+        return
+      }
+      // Si no hay subida en progreso, cerrar el modal
+      this.showUploadModal = false
     },
 
     resetViewState() {

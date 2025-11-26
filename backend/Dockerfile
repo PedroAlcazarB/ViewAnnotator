@@ -1,8 +1,12 @@
-# Usa una imagen base de Python
-FROM python:3.10
+# Usa una imagen base con CUDA y Python
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
 
-# Instalar dependencias del sistema necesarias para OpenCV y ultralytics
+# Instalar Python 3.10, pip y utilidades
 RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    python3.10-dev \
+    curl \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
@@ -12,7 +16,6 @@ RUN apt-get update && apt-get install -y \
     libgstreamer-plugins-base1.0-0 \
     libgtk-3-0 \
     libgl1 \
-    libgthread-2.0-0 \
     libqt5gui5 \
     libqt5core5a \
     libqt5widgets5 \
@@ -21,6 +24,11 @@ RUN apt-get update && apt-get install -y \
     libfontconfig1 \
     libxss1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Crear enlaces simbólicos para python y pip (eliminar si existen primero)
+RUN rm -f /usr/bin/python /usr/bin/pip && \
+    ln -s /usr/bin/python3.10 /usr/bin/python && \
+    ln -s /usr/bin/pip3 /usr/bin/pip
 
 # Define el directorio de trabajo
 WORKDIR /app
