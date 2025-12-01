@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROD_COMPOSE="$PROJECT_ROOT/docker-compose.prod.yml"
-DEV_COMPOSE="$PROJECT_ROOT/docker-compose.dev.yml"
+DEV_COMPOSE="$PROJECT_ROOT/dev-tools/docker-compose.dev.yml"
 
 info() {
   echo "[view-annotator-stop] $*"
@@ -42,7 +42,8 @@ select_mode() {
     echo "$1"
     return
   fi
-  fail "Debes indicar el entorno: dev, prod o all. Ejemplo: $0 dev"
+  # Por defecto, detener producción
+  echo "prod"
 }
 
 main() {

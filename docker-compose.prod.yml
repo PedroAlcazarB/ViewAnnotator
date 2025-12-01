@@ -2,16 +2,16 @@ services:
   # Servicio MongoDB
   mongo:
     image: mongo:6.0
-    container_name: visilab_mongo_prod
+    container_name: viewannotator_mongo_prod
     restart: unless-stopped
     environment:
-      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-visilab_annotator}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-viewannotator}
     volumes:
       - ./mongodb/data:/data/db
       - ./mongodb/logs:/var/log/mongodb
       - ./scripts/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     networks:
-      - visilab_network
+      - viewannotator_network
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -23,7 +23,7 @@ services:
     build: 
       context: ./backend
       dockerfile: Dockerfile
-    container_name: visilab_backend_prod
+    container_name: viewannotator_backend_prod
     restart: unless-stopped
     env_file:
       - .env
@@ -39,7 +39,7 @@ services:
       mongo:
         condition: service_healthy
     networks:
-      - visilab_network
+      - viewannotator_network
     deploy:
       resources:
         reservations:
@@ -59,7 +59,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: visilab_frontend_prod
+    container_name: viewannotator_frontend_prod
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-5000}:80"
@@ -67,9 +67,9 @@ services:
       backend:
         condition: service_healthy
     networks:
-      - visilab_network
+      - viewannotator_network
 
 # Red para comunicación entre servicios
 networks:
-  visilab_network:
+  viewannotator_network:
     driver: bridge 

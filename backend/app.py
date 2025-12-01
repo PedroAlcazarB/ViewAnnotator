@@ -33,7 +33,7 @@ app.config['MAX_CONTENT_LENGTH'] = 2000 * 1024 * 1024  # 2GB
 
 # Configuración de MongoDB
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://mongo:27017/')
-DB_NAME = 'visilab_annotator'
+DB_NAME = 'viewannotator'
 
 def get_db():
     """Obtener conexión a la base de datos MongoDB"""

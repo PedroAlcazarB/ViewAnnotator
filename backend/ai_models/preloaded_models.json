@@ -6,8 +6,8 @@
     "yaml_file": "Guns_dataset.yaml"
   },
   {
-    "name": "YOLO Large v3",
-    "description": "Modelo YOLO Large versión 3 en formato TorchScript",
+    "name": "Detector de Cianobacterias v1.0",
+    "description": "Modelo YOLOv3 entrenado para detectar cianobacterias",
     "model_file": "YOLO_L_v3.torchscript",
     "yaml_file": "classes.txt"
   }

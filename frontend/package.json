@@ -11,7 +11,6 @@
   "dependencies": {
     "fabric": "^6.6.4",
     "konva": "^9.3.20",
-    "paper": "^0.12.18",
     "pinia": "^3.0.2",
     "vue": "^3.5.13",
     "vue-konva": "^3.2.1",

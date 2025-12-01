@@ -2,9 +2,9 @@
   <div class="auth-container">
     <div class="auth-panel">
       <div class="auth-left">
-        <h1 class="auth-title">VISILAB Annotator</h1>
+        <h1 class="auth-title">ViewAnnotator</h1>
         <p class="auth-description">
-          VISILAB Annotator es una herramienta web para la anotación eficiente y versátil de datos visuales.
+          ViewAnnotator es una herramienta web para la anotación eficiente y versátil de datos visuales.
           Permite crear conjuntos de entrenamiento destinados a tareas de localización y detección de objetos
           en imágenes y videos.
         </p>

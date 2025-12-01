@@ -61,11 +61,7 @@ docker compose version
 
 ## Inicio Rápido
 
-Una vez clonado el repositorio, puedes iniciar la aplicación de dos formas:
-
-### Opción 1: Producción (Recomendado)
-
-Para un despliegue optimizado y listo para uso real:
+Una vez clonado el repositorio, inicia la aplicación con el comando:
 
 ```bash
 ./start-production.sh
@@ -82,38 +78,12 @@ Una vez finalizado el proceso, la aplicación estará disponible en **http://loc
 
 > **Nota de Seguridad**: Solo el puerto del frontend (5000) está expuesto. El backend y MongoDB se comunican internamente a través de la red Docker para mayor seguridad.
 
-### Opción 2: Desarrollo
+## Detener la Aplicación
 
-Para desarrollo con hot-reload y debugging:
+Para detener todos los servicios:
 
 ```bash
-./start-development.sh
-```
-
-La aplicación estará disponible en **http://localhost:8080** con recarga automática de cambios.
-
-## Modos de Ejecución
-
-### Producción
-```bash
-./start-production.sh
-```
-- Frontend optimizado con Nginx (único punto de entrada)
-- Backend en modo producción (acceso solo interno)
-- MongoDB protegido (acceso solo interno)
-- Acceso en http://localhost:5000
-
-### Desarrollo
-```bash
-./start-development.sh
-```
-- Hot reload para frontend y backend
-- Volúmenes montados para desarrollo
-- Acceso en http://localhost:8080
-
-### Detener Servicios
-```bash
-./stop.sh [prod|dev|all]
+./stop.sh
 ```
 
 ## Estructura del Proyecto
@@ -134,14 +104,12 @@ ViewAnnotator/
 │   ├── data/                # Datos persistentes
 │   └── logs/               # Logs de MongoDB
 ├── scripts/                 # Scripts de utilidad
+├── dev-tools/              # Herramientas de desarrollo
 ├── .env                    # Variables de entorno (generado)
 ├── .env.example           # Plantilla de variables
-├── docker-compose.prod.yml    # Docker Compose para producción
-├── docker-compose.dev.yml     # Docker Compose para desarrollo
-├── start-production.sh        # Script de inicio producción
-├── start-development.sh       # Script de inicio desarrollo
-├── stop.sh                    # Script para detener servicios
-└── QUICK_START.md            # Guía detallada de inicio
+├── docker-compose.prod.yml    # Docker Compose
+├── start-production.sh        # Script de inicio
+└── stop.sh                    # Script para detener
 ```
 
 ## API Endpoints
@@ -208,47 +176,42 @@ ViewAnnotator/
 - Variables de entorno para configuración sensible
 - Headers de seguridad implementados en Nginx
 
-## Docker
+## Comandos Útiles
 
-### Construir manualmente
+### Ver logs en tiempo real
 ```bash
-docker-compose -f docker-compose.prod.yml build
+docker-compose logs -f
 ```
 
-### Iniciar servicios
+### Ver logs de un servicio específico
 ```bash
-docker-compose -f docker-compose.prod.yml up -d
+docker-compose logs -f backend
+docker-compose logs -f frontend
 ```
 
-### Ver logs
+### Reconstruir servicios tras cambios
 ```bash
-docker-compose -f docker-compose.prod.yml logs -f
+docker-compose build
+docker-compose up -d
 ```
 
-### Detener servicios
+### Ver estado de los contenedores
 ```bash
-docker-compose -f docker-compose.prod.yml down
+docker-compose ps
 ```
 
 ## Desarrollo
 
-### Requisitos adicionales para desarrollo local
-- Python 3.10+
-- Node.js 20+
-- MongoDB 6.0+
+> **Nota**: Los archivos de desarrollo se encuentran en la carpeta `dev-tools/`.
+Para trabajar en modo desarrollo con hot-reload:
 
-### Configurar entorno de desarrollo
 ```bash
-# Backend
-cd backend
-pip install -r requirements.txt
-flask run
-
-# Frontend
-cd frontend
-npm install
-npm run dev
+# Usar el entorno de desarrollo
+cd dev-tools
+./start-development.sh
 ```
+
+El entorno de desarrollo estará disponible en **http://localhost:8080** con recarga automática de cambios.
 
 ## Características Técnicas
 

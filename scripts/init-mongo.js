@@ -2,7 +2,7 @@
 // Este script se ejecuta automáticamente cuando se crea la base de datos
 
 // Crear base de datos y colecciones
-db = db.getSiblingDB('visilab_annotator');
+db = db.getSiblingDB('viewannotator');
 
 // Crear índices para mejorar el rendimiento
 db.images.createIndex({ "dataset_id": 1 });
@@ -23,6 +23,6 @@ db.categories.createIndex({ "name": 1, "dataset_id": 1 }, { unique: true });
 db.datasets.createIndex({ "name": 1, "user_id": 1 }, { unique: true });
 db.datasets.createIndex({ "created_at": -1 });
 
-print('Base de datos visilab_annotator inicializada correctamente');
+print('Base de datos viewannotator inicializada correctamente');
 print('Colecciones creadas: images, annotations, categories, datasets');
 print('Índices creados para mejorar el rendimiento');
