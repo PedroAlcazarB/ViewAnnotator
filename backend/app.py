@@ -274,11 +274,12 @@ def extract_and_find_images(zip_file_path, extract_path):
         Lista de imágenes encontradas y procesadas
     """
     import shutil
+    import tempfile
     
     try:
-        # Crear directorio temporal para extracción
-        temp_extract_dir = os.path.join(extract_path, 'temp_extract')
-        os.makedirs(temp_extract_dir, exist_ok=True)
+        # Crear directorio temporal para extracción fuera del directorio del dataset
+        # Esto evita que Flask watchdog detecte cambios durante la extracción en desarrollo
+        temp_extract_dir = tempfile.mkdtemp(prefix='viewannotator_extract_')
         
         # Extraer ZIP
         with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
