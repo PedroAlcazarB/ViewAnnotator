@@ -48,10 +48,18 @@ window.fetch = async (input, init = {}) => {
     const response = await originalFetch(url, options)
 
     if (response.status === 401) {
-      console.error('[AUTH INTERCEPTOR] Sesión expirada (401) en:', url)
-      authStore.logout()
-      router.push({ name: 'welcome' })
-      throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.')
+      // No interceptar errores de autenticación (login/register) ni verificación inicial
+      const isAuthEndpoint = url.includes('/api/auth/login') || 
+                            url.includes('/api/auth/register') ||
+                            url.includes('/api/auth/verify')
+      
+      if (!isAuthEndpoint) {
+        // Solo para peticiones autenticadas que fallan
+        console.error('[AUTH INTERCEPTOR] Sesión expirada (401) en:', url)
+        authStore.logout()
+        router.push({ name: 'welcome' })
+        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.')
+      }
     }
 
     console.log('[AUTH INTERCEPTOR] Petición exitosa a:', url, '- Status:', response.status)

@@ -135,6 +135,8 @@ export const useAuthStore = defineStore('auth', {
         })
 
         if (!response.ok) {
+          // Si el token es inválido, limpiar la sesión silenciosamente
+          console.warn('Token inválido o expirado, limpiando sesión...')
           this.logout()
           return false
         }
@@ -144,6 +146,7 @@ export const useAuthStore = defineStore('auth', {
         this.isAuthenticated = true
         return true
       } catch (error) {
+        console.error('Error verificando token:', error)
         this.logout()
         return false
       }
