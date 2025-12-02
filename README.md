@@ -74,9 +74,11 @@ El script de inicio automático realiza las siguientes operaciones:
 - Construcción y arranque de los servicios mediante `docker-compose.prod.yml`
 - Presentación del estado de los contenedores y acceso a logs
 
-Una vez finalizado el proceso, la aplicación estará disponible en **http://localhost:5000**.
+Una vez finalizado el proceso, la aplicación estará disponible en **http://localhost:5050**.
 
-> **Nota de Seguridad**: Solo el puerto del frontend (5000) está expuesto. El backend y MongoDB se comunican internamente a través de la red Docker para mayor seguridad.
+> **Nota de Seguridad**: Solo el puerto del frontend (5050 por defecto) está expuesto. El backend y MongoDB se comunican internamente a través de la red Docker para mayor seguridad.
+
+> **Configuración de Puerto**: Puedes cambiar el puerto de acceso editando la variable `FRONTEND_PORT` en el archivo `.env`.
 
 ## Detener la Aplicación
 
@@ -212,6 +214,8 @@ cd dev-tools
 ```
 
 El entorno de desarrollo estará disponible en **http://localhost:8080** con recarga automática de cambios.
+
+> **Nota**: En desarrollo, el frontend usa el puerto 8080 mientras que en producción usa el puerto configurado en `FRONTEND_PORT` (5050 por defecto).
 
 ## Características Técnicas
 

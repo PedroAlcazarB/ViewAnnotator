@@ -178,7 +178,7 @@
 
                   <template v-else>
                     <img
-                      :src="`http://localhost:5000/api/images/${media.item._id}/data`"
+                      :src="`/api/images/${media.item._id}/data`"
                       :alt="media.item.filename"
                       @error="handleImageError"
                     />
@@ -301,7 +301,7 @@
           <div class="annotator-canvas canvas-flex">
             <AnnotationsCanvas 
               ref="annotationsCanvas"
-              :image-url="`http://localhost:5000/api/images/${selectedImage._id}/data`"
+              :image-url="`/api/images/${selectedImage._id}/data`"
               :image-id="selectedImage._id"
               :active-tool="store.activeTool"
               :tool-settings="store.toolSettings"
@@ -320,7 +320,7 @@
                 @click="selectFrame(index)"
               >
                 <img 
-                  :src="`http://localhost:5000/api/images/${frame._id}/data`" 
+                  :src="`/api/images/${frame._id}/data`" 
                   :alt="`Frame ${index + 1}`"
                 />
                 <div class="frame-info">
@@ -948,7 +948,7 @@ export default {
 
       // Usar thumbnail existente si está disponible
       if (video.thumbnail_frame_id) {
-        const url = `http://localhost:5000/api/images/${video.thumbnail_frame_id}/data`
+        const url = `/api/images/${video.thumbnail_frame_id}/data`
         this.videoThumbnails[video._id] = url
         return url
       }
@@ -958,7 +958,7 @@ export default {
         const frame = response.frames && response.frames[0]
 
         if (frame && frame._id) {
-          const url = `http://localhost:5000/api/images/${frame._id}/data`
+          const url = `/api/images/${frame._id}/data`
           this.videoThumbnails[video._id] = url
           video.thumbnail_frame_id = frame._id
           return url

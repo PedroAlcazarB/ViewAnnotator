@@ -112,8 +112,9 @@ main() {
   info "Servicios en ejecución:"
   $compose_cmd -f "$COMPOSE_FILE" ps
 
-  info "ViewAnnotator está disponible en http://localhost:${FRONTEND_PORT:-5000}"
+  info "ViewAnnotator está disponible en http://localhost:${FRONTEND_PORT:-5050}"
   info "(La API está accesible internamente a través de /api)"
+  info "Para cambiar el puerto, edita FRONTEND_PORT en el archivo .env"
   info "Para ver logs: $compose_cmd -f $COMPOSE_FILE logs -f"
 }
 
