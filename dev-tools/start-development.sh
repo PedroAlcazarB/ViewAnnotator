@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="$PROJECT_ROOT/docker-compose.dev.yml"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.dev.yml"
 ENV_FILE="$PROJECT_ROOT/.env"
 ENV_EXAMPLE="$PROJECT_ROOT/.env.example"
 
@@ -95,10 +96,10 @@ main() {
   ensure_directories
 
   info "Levantando servicios en modo desarrollo..."
-  $compose_cmd -f "$COMPOSE_FILE" up -d --build
+  $compose_cmd -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
 
   info "Servicios en ejecución:"
-  $compose_cmd -f "$COMPOSE_FILE" ps
+  $compose_cmd -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 
   info "Frontend disponible en http://localhost:8080"
   info "API disponible en http://localhost:5000"
